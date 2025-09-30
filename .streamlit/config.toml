@@ -1,0 +1,9 @@
+# .streamlit/config.toml
+
+[theme]
+# Basado en los colores principales de tu app: #667eea (azul) y #764ba2 (púrpura)
+primaryColor = "#667eea"      # Azul principal
+backgroundColor = "#f8fafc"   # Fondo claro muy sutil
+secondaryBackgroundColor = "#ffffff" # Fondo de elementos secundarios (blanco)
+textColor = "#1e293b"         # Gris oscuro para texto principal
+font = "sans serif"           # Fuente sans serif (Inter en tu CSS)
