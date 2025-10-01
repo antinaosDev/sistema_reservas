@@ -6,7 +6,6 @@
 
 ---
 
-# <img src="avatar_aas.png" alt="icono animado" width="75" style="vertical-align: middle;"/> 🏢 Sistema de Reserva de Salas
 
 **Versión 2.0 Professional**
 
@@ -154,5 +153,6 @@ Un sistema de gestión inteligente de reserva de salas de reuniones desarrollado
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=0:1E90FF,100:FF4B4B&height=120&section=footer"/>
 </p>
+
 
 
