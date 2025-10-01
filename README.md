@@ -1,5 +1,4 @@
 
-```markdown
 <!-- Encabezado con banner -->
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=0:FF4B4B,100:1E90FF&height=200&section=header&text=Sistema%20de%20Reserva%20de%20Salas&fontSize=45&fontColor=ffffff&animation=fadeIn&fontAlignY=35"/>
@@ -155,4 +154,5 @@ Un sistema de gestión inteligente de reserva de salas de reuniones desarrollado
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=0:1E90FF,100:FF4B4B&height=120&section=footer"/>
 </p>
-```
+
+
