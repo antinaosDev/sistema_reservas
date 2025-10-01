@@ -1017,11 +1017,26 @@ with tab2:
         st.markdown("### 🕐 Horario Preferido")
         col_h1, col_h2 = st.columns(2)
         with col_h1:
-            hora_inicio_rango = st.time_input("Inicio preferido *", value=time(9, 0), key="inicio_rango")
+            # Agregar min_value y max_value para restringir el rango
+            hora_inicio_rango = st.time_input(
+                "Inicio *",
+                value=time(9, 0), # Valor por defecto
+                key="inicio_rango",
+                min_value=time(8, 0), # Hora mínima: 8:00 AM
+                max_value=time(17, 0)  # Hora máxima: 5:00 PM
+            )
         with col_h2:
-            hora_fin_rango = st.time_input("Fin preferido *", value=time(16, 0), key="fin_rango")
+            # Agregar min_value y max_value para restringir el rango
+            hora_fin_rango = st.time_input(
+                "Fin *",
+                value=time(16, 0), # Valor por defecto
+                key="fin_rango",
+                min_value=time(8, 0), # Hora mínima: 8:00 AM
+                max_value=time(17, 0)  # Hora máxima: 5:00 PM
+            )
 
         st.info("💡 El sistema asignará un horario de 1.5 horas dentro de su rango preferido")
+
 
         st.markdown("### 👥 Información Adicional")
         num_asistentes = st.number_input(
