@@ -4,6 +4,7 @@ from datetime import datetime, time, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
 import json # Añadido para manejar el archivo JSON de credenciales
 from PIL import Image
 @st.cache_resource
@@ -24,7 +25,7 @@ try:
     creds_info = json.loads(st.secrets["google_sheets_creds"])
     creds = service_account.Credentials.from_service_account_info(
         creds_info, scopes=SCOPES)
-    st.success("✅ Credenciales de Google Sheets cargadas desde secrets.")
+    #st.success("✅ Credenciales de Google Sheets cargadas desde secrets.")
 except KeyError:
     st.error("❌ Error: No se encontró el secret 'google_sheets_creds' en secrets.toml.")
     st.stop() # Detiene la ejecución si no hay credenciales
@@ -1268,7 +1269,8 @@ with st.sidebar:
     # Información del sistema
     st.markdown("### ℹ️ Estado del Sistema")
     st.success("🟢 Sistema Operativo")
-    st.info(f"📅 {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    hora_actual = datetime.now() - timedelta(hours=3)
+    st.info(f"📅 {hora_actual.strftime('%d/%m/%Y %H:%M')}")
     st.caption(f"Total de reservas: {len(st.session_state.reservas)}")
 
 # Footer
