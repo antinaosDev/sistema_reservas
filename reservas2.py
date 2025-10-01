@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime, time, timedelta
@@ -7,7 +6,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import json # Añadido para manejar el archivo JSON de credenciales
 from PIL import Image
-import pytz 
+import pytz # <-- Importación añadida para manejo de zonas horarias
 
 # --- Definición de Zona Horaria ---
 # Define la zona horaria de Chile Continental (CLT) o la que corresponda
@@ -1017,26 +1016,13 @@ with tab2:
         st.markdown("### 🕐 Horario Preferido")
         col_h1, col_h2 = st.columns(2)
         with col_h1:
-            # Agregar min_value y max_value para restringir el rango
-            hora_inicio_rango = st.time_input(
-                "Inicio *",
-                value=time(9, 0), # Valor por defecto
-                key="inicio_rango",
-                min_value=time(8, 0), # Hora mínima: 8:00 AM
-                max_value=time(17, 0)  # Hora máxima: 5:00 PM
-            )
+            # Mantener la línea original sin min_value ni max_value
+            hora_inicio_rango = st.time_input("Inicio preferido *", value=time(9, 0), key="inicio_rango")
         with col_h2:
-            # Agregar min_value y max_value para restringir el rango
-            hora_fin_rango = st.time_input(
-                "Fin *",
-                value=time(16, 0), # Valor por defecto
-                key="fin_rango",
-                min_value=time(8, 0), # Hora mínima: 8:00 AM
-                max_value=time(17, 0)  # Hora máxima: 5:00 PM
-            )
+            # Mantener la línea original sin min_value ni max_value
+            hora_fin_rango = st.time_input("Fin preferido *", value=time(16, 0), key="fin_rango")
 
         st.info("💡 El sistema asignará un horario de 1.5 horas dentro de su rango preferido")
-
 
         st.markdown("### 👥 Información Adicional")
         num_asistentes = st.number_input(
@@ -1396,4 +1382,3 @@ with st.container():
                     🌐 Más información en: <a href="https://alain-antinao-s.notion.site/Alain-C-sar-Antinao-Sep-lveda-1d20a081d9a980ca9d43e283a278053e" target="_blank" style="color: #4A90E2;">Mi página personal</a>
                 </div>
             """, unsafe_allow_html=True)
-
