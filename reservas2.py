@@ -7,6 +7,8 @@ from plotly.subplots import make_subplots
 import json # Añadido para manejar el archivo JSON de credenciales
 from PIL import Image
 import pytz # <-- Importación añadida para manejo de zonas horarias
+import json # Añadido para manejar el archivo JSON de credenciales
+from streamlit_calendar import calendar # <-- Importación añadida para la vista de calendario
 
 # --- Definición de Zona Horaria ---
 # Define la zona horaria de Chile Continental (CLT) o la que corresponda
@@ -1213,92 +1215,165 @@ with tab3:
     with col_f3:
         fecha_hasta = st.date_input("Hasta", value=obtener_hora_local().date() + timedelta(days=30)) # <-- Cambiado a hora local
 
-    # Obtener reservas futuras
-    reservas_futuras = []
-    for reserva in st.session_state.reservas:
-        # Asegurarse de que la reserva tiene la clave 'fecha'
-        if 'fecha' not in reserva:
-            print(f"Advertencia: Reserva sin clave 'fecha': {reserva}")
-            continue # Saltar esta reserva
-        try:
-            fecha_reserva = datetime.strptime(reserva['fecha'], '%Y-%m-%d').date()
-            # Aplicar filtros
-            if fecha_reserva < fecha_desde or fecha_reserva > fecha_hasta:
+    # --- NUEVO: Pestañas para Lista y Calendario ---
+    view_tab1, view_tab2 = st.tabs(["📋 Lista de Reservas", "📅 Vista de Calendario"])
+
+    with view_tab1: # Contenido original de la lista
+        # Obtener reservas futuras basadas en los filtros
+        reservas_futuras = []
+        for reserva in st.session_state.reservas:
+            # Asegurarse de que la reserva tiene la clave 'fecha'
+            if 'fecha' not in reserva:
+                print(f"Advertencia: Reserva sin clave 'fecha': {reserva}")
+                continue # Saltar esta reserva
+            try:
+                fecha_reserva = datetime.strptime(reserva['fecha'], '%Y-%m-%d').date()
+                # Aplicar filtros
+                if fecha_reserva < fecha_desde or fecha_reserva > fecha_hasta:
+                    continue
+                if filtro_criterio and reserva['criterio'] not in filtro_criterio:
+                    continue
+                reservas_futuras.append(reserva)
+            except ValueError:
+                print(f"Advertencia: Fecha inválida '{reserva['fecha']}' en reserva {reserva.get('id', 'desconocido')}, ignorando filtro.")
+                continue # Saltar esta reserva si la fecha es inválida
+
+        if reservas_futuras:
+            # Agregar prioridad numérica
+            for reserva in reservas_futuras:
+                reserva['prioridad_num'] = obtener_prioridad(reserva['criterio'])
+            df_reservas = pd.DataFrame(reservas_futuras)
+            df_reservas = df_reservas.sort_values(['fecha', 'prioridad_num', 'hora_inicio'])
+
+            # Mostrar estadísticas del filtro
+            col_est1, col_est2, col_est3, col_est4 = st.columns(4)
+            with col_est1:
+                st.metric("📊 Total Reservas", len(reservas_futuras))
+            with col_est2:
+                total_asistentes = df_reservas['num_asistentes'].sum()
+                st.metric("👥 Total Asistentes", int(total_asistentes))
+            with col_est3:
+                dias_unicos = df_reservas['fecha'].nunique()
+                st.metric("📅 Días Ocupados", dias_unicos)
+            with col_est4:
+                prioridad_alta = len(df_reservas[df_reservas['prioridad_num'] <= 2])
+                st.metric("⭐ Alta Prioridad", prioridad_alta)
+
+            st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+
+            # Tabla de reservas con diseño mejorado
+            st.markdown("### 📊 Lista de Reservas")
+            columnas_mostrar = ['id', 'fecha', 'hora_inicio', 'hora_fin', 'nombre', 'email',
+                               'criterio', 'num_asistentes', 'proposito']
+            df_display = df_reservas[columnas_mostrar].copy()
+            df_display.columns = ['ID', 'Fecha', 'Inicio', 'Fin', 'Nombre', 'Email',
+                                 'Criterio', 'Asistentes', 'Propósito']
+
+            # Formatear propósito
+            df_display['Propósito'] = df_display['Propósito'].apply(
+                lambda x: x[:50] + '...' if len(str(x)) > 50 else x
+            )
+            # Formatear fecha
+            df_display['Fecha'] = pd.to_datetime(df_display['Fecha'], errors='coerce').dt.strftime('%d/%m/%Y')
+
+            # Mostrar tabla con formato
+            st.dataframe(
+                df_display,
+                use_container_width=True,
+                height=400,
+                hide_index=True
+            )
+
+            # Opción de descarga
+            st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+            csv = df_display.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Descargar Reservas (CSV)",
+                data=csv,
+                file_name=f"reservas_{obtener_hora_local().strftime('%Y%m%d')}.csv", # <-- Cambiado a hora local
+                mime="text/csv",
+                use_container_width=True
+            )
+        else:
+            st.markdown("""
+            <div class="info-box">
+                <h3>📭 No hay reservas</h3>
+                <p>No se encontraron reservas con los filtros aplicados</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    with view_tab2: # Nueva pestaña para la vista de calendario
+        st.markdown("### 📅 Calendario de Reservas")
+        # Filtrar reservas para el calendario basado en los filtros de fecha y criterio
+        eventos_calendario = []
+        for reserva in st.session_state.reservas:
+            if 'fecha' not in reserva:
                 continue
-            if filtro_criterio and reserva['criterio'] not in filtro_criterio:
+            try:
+                fecha_reserva_dt = datetime.strptime(reserva['fecha'], '%Y-%m-%d')
+                fecha_reserva = fecha_reserva_dt.date()
+                if fecha_reserva < fecha_desde or fecha_reserva > fecha_hasta:
+                    continue
+                if filtro_criterio and reserva['criterio'] not in filtro_criterio:
+                    continue
+
+                # Determinar color basado en la prioridad
+                color_evento = "#667eea" # Default
+                if reserva['criterio'].startswith("1"): # Supervisión
+                    color_evento = "#ef4444"
+                elif reserva['criterio'].startswith("2"): # Comunidad
+                    color_evento = "#f59e0b"
+                elif reserva['criterio'].startswith("3"): # Equipos
+                    color_evento = "#3b82f6"
+                elif reserva['criterio'].startswith("4"): # Generales
+                    color_evento = "#6b7280"
+
+                # Formatear la hora de inicio y fin para mostrar en el evento
+                hora_inicio = reserva.get('hora_inicio', 'N/A')
+                hora_fin = reserva.get('hora_fin', 'N/A')
+                horario_texto = f"{hora_inicio} - {hora_fin}"
+
+                # Crear el evento para el calendario
+                evento = {
+                    "title": f"[{reserva.get('id', 'N/A')}] {reserva.get('nombre', 'Anónimo')}",
+                    "start": reserva['fecha'], # Formato 'YYYY-MM-DD'
+                    "end": reserva['fecha'],   # Mismo día para eventos de un día
+                    "description": f"Criterio: {reserva['criterio']}\nHorario: {horario_texto}",
+                    "color": color_evento
+                }
+                eventos_calendario.append(evento)
+            except ValueError:
+                print(f"Advertencia: Fecha inválida '{reserva['fecha']}' en reserva {reserva.get('id', 'desconocido')}, ignorando para calendario.")
                 continue
-            reservas_futuras.append(reserva)
-        except ValueError:
-            print(f"Advertencia: Fecha inválida '{reserva['fecha']}' en reserva {reserva.get('id', 'desconocido')}, ignorando filtro.")
-            continue # Saltar esta reserva si la fecha es inválida
 
-    st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+        # Configuración del calendario
+        calendar_options = {
+            "editable": "false", # Hacerlo no editable
+            "navLinks": "true",  # Permitir navegación
+            "resources": "false", # No usar recursos
+            "initialView": "dayGridMonth", # Vista inicial: mes
+            "headerToolbar": {
+                "left": "prev,next today",
+                "center": "title",
+                "right": "dayGridMonth,timeGridWeek,timeGridDay"
+            },
+            "events": eventos_calendario
+        }
 
-    if reservas_futuras:
-        # Agregar prioridad numérica
-        for reserva in reservas_futuras:
-            reserva['prioridad_num'] = obtener_prioridad(reserva['criterio'])
-
-        df_reservas = pd.DataFrame(reservas_futuras)
-        df_reservas = df_reservas.sort_values(['fecha', 'prioridad_num', 'hora_inicio'])
-
-        # Mostrar estadísticas del filtro
-        col_est1, col_est2, col_est3, col_est4 = st.columns(4)
-        with col_est1:
-            st.metric("📊 Total Reservas", len(reservas_futuras))
-        with col_est2:
-            total_asistentes = df_reservas['num_asistentes'].sum()
-            st.metric("👥 Total Asistentes", int(total_asistentes))
-        with col_est3:
-            dias_unicos = df_reservas['fecha'].nunique()
-            st.metric("📅 Días Ocupados", dias_unicos)
-        with col_est4:
-            prioridad_alta = len(df_reservas[df_reservas['prioridad_num'] <= 2])
-            st.metric("⭐ Alta Prioridad", prioridad_alta)
-
-        st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
-
-        # Tabla de reservas con diseño mejorado
-        st.markdown("### 📊 Lista de Reservas")
-        columnas_mostrar = ['id', 'fecha', 'hora_inicio', 'hora_fin', 'nombre', 'email',
-                           'criterio', 'num_asistentes', 'proposito']
-        df_display = df_reservas[columnas_mostrar].copy()
-        df_display.columns = ['ID', 'Fecha', 'Inicio', 'Fin', 'Nombre', 'Email',
-                             'Criterio', 'Asistentes', 'Propósito']
-
-        # Formatear propósito
-        df_display['Propósito'] = df_display['Propósito'].apply(
-            lambda x: x[:50] + '...' if len(str(x)) > 50 else x
+        # Mostrar el calendario
+        calendar(
+            events=calendar_options["events"],
+            options=calendar_options,
+            custom_css="""
+                .fc-event-main {
+                    font-size: 0.8em;
+                }
+                .fc-event-title {
+                    font-weight: bold;
+                }
+            """
         )
 
-        # Formatear fecha
-        df_display['Fecha'] = pd.to_datetime(df_display['Fecha'], errors='coerce').dt.strftime('%d/%m/%Y')
-
-        # Mostrar tabla con formato
-        st.dataframe(
-            df_display,
-            use_container_width=True,
-            height=400,
-            hide_index=True
-        )
-
-        # Opción de descarga
-        st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
-        csv = df_display.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Descargar Reservas (CSV)",
-            data=csv,
-            file_name=f"reservas_{obtener_hora_local().strftime('%Y%m%d')}.csv", # <-- Cambiado a hora local
-            mime="text/csv",
-            use_container_width=True
-        )
-    else:
-        st.markdown("""
-        <div class="info-box">
-            <h3>📭 No hay reservas</h3>
-            <p>No se encontraron reservas con los filtros aplicados</p>
-        </div>
-        """, unsafe_allow_html=True)
 
 # Sidebar con información y carga de logo
 with st.sidebar:
