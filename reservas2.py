@@ -8,8 +8,7 @@ import json # Añadido para manejar el archivo JSON de credenciales
 from PIL import Image
 import pytz # <-- Importación añadida para manejo de zonas horarias
 import json # Añadido para manejar el archivo JSON de credenciales
-from streamlit_calendar import calendar # <-- Importación añadida para la vista de calendario
-
+# from streamlit_calendar import calendar # <-- Importación comentada para evitar el error
 # --- Definición de Zona Horaria ---
 # Define la zona horaria de Chile Continental (CLT) o la que corresponda
 # Asegúrate de usar el nombre correcto de la zona horaria, por ejemplo:
@@ -18,7 +17,6 @@ from streamlit_calendar import calendar # <-- Importación añadida para la vist
 # 'Europe/London' para Reino Unido
 ZONA_HORARIA_LOCAL = pytz.timezone('America/Santiago') # <-- Cambia esto si es necesario
 # --- Fin Definición de Zona Horaria ---
-
 # --- Funciones de Utilidad ---
 def obtener_hora_local():
     """Obtiene la hora actual en la zona horaria local definida."""
@@ -26,21 +24,34 @@ def obtener_hora_local():
     hora_local = utc_now.astimezone(ZONA_HORARIA_LOCAL) # Convierte a la zona horaria local
     return hora_local
 
-# --- Fin Funciones de Utilidad ---
+def es_dia_habil(fecha):
+    """Verifica si una fecha es día hábil (lunes a viernes)."""
+    return fecha.weekday() < 5
 
+def calcular_dias_habiles(fecha_inicio, fecha_fin):
+    """Calcula la cantidad de días hábiles entre dos fechas (excluyendo inicio, incluyendo fin)."""
+    if fecha_inicio >= fecha_fin:
+        return 0
+
+    dias_habiles = 0
+    fecha_actual = fecha_inicio + timedelta(days=1) # Comenzamos desde el día siguiente al inicio
+    while fecha_actual <= fecha_fin:
+        if es_dia_habil(fecha_actual):
+            dias_habiles += 1
+        fecha_actual += timedelta(days=1)
+    return dias_habiles
+
+# --- Fin Funciones de Utilidad ---
 @st.cache_resource
 def load_logo(path):
     return Image.open(path)
-
 # --- Integración con Google Sheets usando secrets ---
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 import streamlit as st # Asegúrate de importar st aquí si no está
 import json # Asegúrate de importar json aquí si no está
-
 # Alcances requeridos para trabajar con Google Sheets
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-
 try:
     # Intenta obtener las credenciales del archivo secrets.toml
     # Accede al secret definido como google_sheets_creds
@@ -54,16 +65,12 @@ except KeyError:
 except Exception as e:
     st.error(f"❌ Error al cargar las credenciales desde secrets: {e}")
     st.stop() # Detiene la ejecución si hay un error al cargarlas
-
 # Construir el servicio de Google Sheets API (esta parte no cambia)
 service = build('sheets', 'v4', credentials=creds)
-
 # ID de la hoja de cálculo (reemplaza con tu propio ID)
 SPREADSHEET_ID = '1ojDb593qqFO0xDmbYNzpNWI4gwbbQpVXEt8ggPHIwYg'
 SHEET_NAME = 'Hoja 1' # Nombre de la hoja donde se almacenan las reservas
-
 # --- Fin Integración Google Sheets ---
-
 # Configuración de la página
 st.set_page_config(
     page_title="Sistema de Reserva | Gestión Inteligente",
@@ -71,7 +78,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 # CSS personalizado para diseño profesional
 st.markdown("""
 <style>
@@ -208,7 +214,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
 # Mapeo de criterios a valores numéricos de prioridad
 CRITERIO_PRIORIDAD = {
     "1 - Supervisión de Referentes": 1,
@@ -216,15 +221,13 @@ CRITERIO_PRIORIDAD = {
     "3 - Reuniones de Equipos": 3,
     "4 - Reuniones Generales (mínimo 4 personas)": 4
 }
-
 HORA_INICIO_DIA = time(8, 0)
 HORA_FIN_DIA = time(17, 0)
-
 # --- Funciones de Interacción con Google Sheets ---
 def cargar_reservas_desde_sheets():
     """Carga las reservas desde la hoja de cálculo de Google."""
     try:
-        range_name = f"'{SHEET_NAME}'!A:L" # Asumiendo columnas A a L
+        range_name = f"'{SHEET_NAME}'!A:L" # Asumiendo columnas A a L (con fecha_reserva)
         result = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=range_name
@@ -236,16 +239,14 @@ def cargar_reservas_desde_sheets():
         # Convertir las filas en diccionarios
         headers = values[0] # La primera fila son los encabezados
         rows = values[1:]   # Las siguientes son los datos
-
-        # Asegurarse de que los encabezados sean los esperados
+        # Asegurarse de que los encabezados sean los esperados (tu estructura actualizada)
         expected_headers = ['id', 'nombre', 'email', 'fecha', 'hora_inicio_rango', 'hora_fin_rango',
-                           'hora_inicio', 'hora_fin', 'criterio', 'num_asistentes', 'proposito', 'fecha_reserva']
+                           'hora_inicio', 'hora_fin', 'criterio', 'num_asistentes', 'proposito', 'fecha_reserva'] # Con 'fecha_reserva'
         if len(headers) != len(expected_headers) or headers != expected_headers:
              st.error(f"⚠️ La estructura de la hoja '{SHEET_NAME}' no coincide con la esperada. "
                       f"Encabezados actuales: {headers}, Encabezados esperados: {expected_headers}")
              print(f"Error: Encabezados no coinciden. Actuales: {headers}, Esperados: {expected_headers}")
              return [] # Devolver lista vacía si no coinciden
-
         reservas = []
         for i, row in enumerate(rows, start=2): # Empezar en 2 porque la fila 1 son encabezados
             if len(row) >= len(headers): # Asegurarse de que la fila tiene suficientes columnas
@@ -267,21 +268,20 @@ def cargar_reservas_desde_sheets():
                     except ValueError:
                         print(f"Advertencia: Formato de fecha inválido en la fila {i}: {fecha_str}, saltando fila.")
                         continue # Saltar esta fila si la fecha es inválida
-
+                # Añadir duracion_horas como campo temporal con valor por defecto para la lógica
+                reserva_dict['duracion_horas'] = 1.5 # Valor por defecto para reservas existentes
+                # Manejar fecha_reserva
+                if not reserva_dict.get('fecha_reserva'):
+                    # Asignar un valor por defecto si la celda está vacía
+                    reserva_dict['fecha_reserva'] = "1900-01-01 00:00:00"
                 reservas.append(reserva_dict)
             else:
                 print(f"Fila {i} con datos insuficientes (menos de {len(headers)} columnas): {row}, saltando fila.")
-                # Opcional: Añadir un diccionario con valores por defecto si se quiere manejar de otra manera
-                # reserva_dict = {h: "" for h in headers} # Inicializar con vacíos
-                # ... llenar los disponibles ...
-                # reservas.append(reserva_dict)
-
         return reservas
     except Exception as e:
         print(f"Error al cargar reservas desde Google Sheets: {e}")
         st.error(f"Error al cargar datos: {e}")
         return []
-
 def guardar_reserva_en_sheets(reserva):
     """Guarda una nueva reserva en la hoja de cálculo de Google."""
     try:
@@ -307,9 +307,8 @@ def guardar_reserva_en_sheets(reserva):
                          continue
              nuevo_numero = max_numero + 1
              reserva['id'] = f"{prefijo}{nuevo_numero:03d}"
-
         # Preparar la fila para insertar
-        # El orden debe coincidir con el de las columnas en la hoja (A a L)
+        # El orden debe coincidir con el de las columnas en la hoja (A a L) - SIN duracion_horas
         fila_a_insertar = [
             reserva.get('id', ''),
             reserva.get('nombre', ''),
@@ -324,8 +323,8 @@ def guardar_reserva_en_sheets(reserva):
             reserva.get('proposito', ''),
             reserva.get('fecha_reserva', '')
             # 'prioridad_num' no se guarda explícitamente en la hoja, se calcula al cargar
+            # 'duracion_horas' tampoco se guarda
         ]
-
         # Insertar la fila al final de la hoja
         range_name_write = f"'{SHEET_NAME}'!A{1000000}" # Insertar en una fila muy baja o usar append
         # Opcional: Usar append para añadir al final
@@ -335,23 +334,19 @@ def guardar_reserva_en_sheets(reserva):
             valueInputOption='USER_ENTERED',
             body={'values': [fila_a_insertar]}
         ).execute()
-
         print(f"Reserva guardada exitosamente en Google Sheets con ID {reserva['id']}.")
         return reserva['id']
     except Exception as e:
         print(f"Error al guardar reserva en Google Sheets: {e}")
         st.error(f"Error al guardar la reserva: {e}")
         return "" # Indicar fallo
-
 # --- Fin Funciones Google Sheets ---
-
 # Funciones auxiliares (mantienen la misma lógica original, pero adaptadas para usar Google Sheets)
 def cargar_reservas():
     # Ahora carga desde Google Sheets
     if 'reservas_db' not in st.session_state:
         st.session_state.reservas_db = cargar_reservas_desde_sheets()
     return st.session_state.reservas_db
-
 def guardar_reserva(reserva):
     # Ahora guarda en Google Sheets
     # No necesitamos mantener una lista local en session_state para escritura,
@@ -376,14 +371,12 @@ def guardar_reserva(reserva):
                      continue
          nuevo_numero = max_numero + 1
          reserva['id'] = f"{prefijo}{nuevo_numero:03d}"
-
     id_guardado = guardar_reserva_en_sheets(reserva)
     # Opcional: Forzar recarga de la lista principal después de guardar
     # Esto asegura que la lista local en session_state esté actualizada
     # si se accede a ella inmediatamente después de guardar.
     st.session_state.reservas_db = cargar_reservas_desde_sheets()
     return id_guardado
-
 # NUEVA FUNCIÓN: Genera un ID único basado en la fecha de la reunión
 def generar_id_unica_para_fecha(fecha_reserva_str):
     """Genera un ID único basado en la fecha de la reunión."""
@@ -392,7 +385,6 @@ def generar_id_unica_para_fecha(fecha_reserva_str):
     prefijo = f"RES-{id_fecha}-"
     # Filtrar reservas con el mismo prefijo de fecha
     reservas_fecha = [r for r in todas_las_reservas if r.get('id', '').startswith(prefijo)]
-
     # Encontrar el número más alto
     max_numero = 0
     for r in reservas_fecha:
@@ -404,12 +396,12 @@ def generar_id_unica_para_fecha(fecha_reserva_str):
                     max_numero = numero
             except ValueError:
                 continue # Si no es un número, lo ignora
-
     nuevo_numero = max_numero + 1
     return f"{prefijo}{nuevo_numero:03d}" # Formato 001, 002, etc.
-
 def obtener_prioridad(criterio):
     return CRITERIO_PRIORIDAD.get(criterio, 999)
+
+# --- Funciones Modificadas ---
 
 def time_to_minutes(t):
     if isinstance(t, str):
@@ -421,73 +413,59 @@ def minutes_to_time(minutes):
     mins = minutes % 60
     return f"{hours:02d}:{mins:02d}"
 
+# --- FUNCIÓN CRÍTICA ACTUALIZADA ---
 def verificar_solapamiento(inicio1, fin1, inicio2, fin2):
+    """
+    Verifica si dos intervalos de tiempo [inicio, fin] se solapan.
+    Esta versión considera intervalos cerrados para una detección más estricta,
+    evitando que una reunión empiece exactamente cuando termina otra.
+    Dos intervalos [i1, f1] y [i2, f2] se solapan si i1 <= f2 AND i2 <= f1.
+    """
     i1 = time_to_minutes(inicio1)
     f1 = time_to_minutes(fin1)
     i2 = time_to_minutes(inicio2)
     f2 = time_to_minutes(fin2)
-    return not (f1 <= i2 or f2 <= i1)
 
-def es_dia_habil(fecha):
-    return fecha.weekday() < 5
-
-def calcular_horas_habiles(fecha_inicio, fecha_fin):
-    if fecha_inicio >= fecha_fin:
-        return 0
-
-    horas_totales = 0
-    fecha_actual = fecha_inicio
-    while fecha_actual < fecha_fin:
-        if es_dia_habil(fecha_actual):
-            if fecha_actual.date() == fecha_inicio.date():
-                fin_dia = datetime.combine(fecha_actual.date(), time(17, 0))
-                if fecha_fin.date() == fecha_actual.date():
-                    horas_dia = (fecha_fin - fecha_actual).total_seconds() / 3600
-                else:
-                    horas_dia = (fin_dia - fecha_actual).total_seconds() / 3600
-            elif fecha_actual.date() == fecha_fin.date():
-                inicio_dia = datetime.combine(fecha_actual.date(), time(8, 0))
-                horas_dia = (fecha_fin - inicio_dia).total_seconds() / 3600
-            else:
-                horas_dia = 9
-            horas_totales += max(0, horas_dia)
-        fecha_actual += timedelta(days=1)
-
-    return horas_totales
+    # Condición de solapamiento para intervalos cerrados
+    return i1 <= f2 and i2 <= f1
+# --- FIN FUNCIÓN CRÍTICA ACTUALIZADA ---
 
 def validar_plazo_reserva(fecha_reunion, criterio, fecha_solicitud=None):
+    """Valida el plazo de reserva basado en días hábiles."""
     if fecha_solicitud is None:
         # Usar la hora local para la validación de plazos
         fecha_solicitud = obtener_hora_local()
 
+    # La fecha de reunión debe ser futura
     if fecha_reunion <= fecha_solicitud.date():
         return False, "La fecha de reunión debe ser futura"
 
-    inicio_habil = datetime.combine(fecha_solicitud.date(), fecha_solicitud.time())
-    fin_habil = datetime.combine(fecha_reunion, time(8, 0))
-    horas_habiles = calcular_horas_habiles(inicio_habil, fin_habil)
+    # Calcular días hábiles entre la fecha de solicitud (día actual) y la fecha de reunión
+    dias_habiles = calcular_dias_habiles(fecha_solicitud.date(), fecha_reunion)
 
     if criterio.startswith("1") or criterio.startswith("2"):
-        if horas_habiles < 24:
-            dias_faltantes = 1 if horas_habiles < 9 else 2
-            return False, f"Reservas de alta prioridad requieren mínimo 24 horas hábiles de anticipación (faltan ~{dias_faltantes} día(s) hábil(es))"
+        # Alta prioridad: mínimo 1 día hábil de anticipación
+        if dias_habiles < 1:
+            return False, f"Reservas de alta prioridad requieren mínimo 1 día hábil de anticipación"
     else:
-        if horas_habiles < 48:
-            dias_faltantes = 3 if horas_habiles < 27 else 2
-            return False, f"Reservas ordinarias requieren mínimo 48 horas hábiles de anticipación (faltan ~{dias_faltantes} día(s) hábil(es))"
+        # Prioridad normal: mínimo 2 días hábiles de anticipación
+        if dias_habiles < 2:
+            return False, f"Reservas ordinarias requieren mínimo 2 días hábiles de anticipación"
 
     return True, ""
 
-def encontrar_horarios_disponibles_en_rango(fecha, hora_inicio_rango, hora_fin_rango, reservas_existentes):
+def encontrar_horarios_disponibles_en_rango(fecha, hora_inicio_rango, hora_fin_rango, reservas_existentes, duracion_requerida_horas):
+    """Encuentra horarios disponibles considerando la duración requerida (1, 2 o 3 horas)."""
     horarios_disponibles = []
     inicio_rango_min = time_to_minutes(hora_inicio_rango)
     fin_rango_min = time_to_minutes(hora_fin_rango)
+    duracion_requerida_minutos = int(duracion_requerida_horas * 60)
+    duracion_bloque_minutos = 30  # Bloques de 30 minutos
 
     tiempo_actual = inicio_rango_min
-    while tiempo_actual + 90 <= fin_rango_min:
+    while tiempo_actual + duracion_requerida_minutos <= fin_rango_min:
         inicio_propuesto = minutes_to_time(tiempo_actual)
-        fin_propuesto = minutes_to_time(tiempo_actual + 90)
-
+        fin_propuesto = minutes_to_time(tiempo_actual + duracion_requerida_minutos)
         disponible = True
         for reserva in reservas_existentes:
             if (reserva['fecha'] == fecha and
@@ -495,50 +473,70 @@ def encontrar_horarios_disponibles_en_rango(fecha, hora_inicio_rango, hora_fin_r
                                      reserva['hora_inicio'], reserva['hora_fin'])):
                 disponible = False
                 break
-
         if disponible:
             horarios_disponibles.append((inicio_propuesto, fin_propuesto))
-
-        tiempo_actual += 30
-
+        tiempo_actual += duracion_bloque_minutos  # Avanzar en bloques de 30 minutos
     return horarios_disponibles
 
-def reubicar_reserva(reserva_a_reubicar, reservas_fijas, fecha):
+def reubicar_reserva(reserva_a_reubicar, reservas_fijas, fecha, duracion_requerida_horas):
+    """Reubica una reserva existente a un nuevo horario."""
     fecha_solicitud_reserva = datetime.strptime(reserva_a_reubicar['fecha_reserva'], '%Y-%m-%d %H:%M:%S')
     # Usar la hora local para la comparación de fechas
     fecha_actual = obtener_hora_local()
-
     if fecha_solicitud_reserva.date() != fecha_actual.date():
         return False, None
 
+    # Usar la duración pasada como parámetro, o la de la reserva si no se pasa
+    duracion_horas_reserva = duracion_requerida_horas
     horarios_disponibles = encontrar_horarios_disponibles_en_rango(
-        fecha, HORA_INICIO_DIA, HORA_FIN_DIA, reservas_fijas
+        fecha, HORA_INICIO_DIA, HORA_FIN_DIA, reservas_fijas, duracion_horas_reserva
     )
-
     if horarios_disponibles:
         nuevo_inicio, nuevo_fin = horarios_disponibles[0]
         reserva_a_reubicar['hora_inicio'] = nuevo_inicio
         reserva_a_reubicar['hora_fin'] = nuevo_fin
+        # --- CÁLCULO AUTOMÁTICO DE DURACIÓN ---
+        duracion_calc = (time_to_minutes(nuevo_fin) - time_to_minutes(nuevo_inicio)) / 60.0
+        reserva_a_reubicar['duracion_horas'] = round(duracion_calc, 2) # Asignar duración calculada
+        # --- FIN CÁLCULO AUTOMÁTICO DE DURACIÓN ---
         return True, reserva_a_reubicar
-
     return False, None
 
 def procesar_reserva_con_rango_y_prioridad(nueva_reserva, reservas_existentes):
+    """Procesa una nueva reserva, maneja prioridad y conflictos."""
     fecha = nueva_reserva['fecha']
     prioridad_nueva = obtener_prioridad(nueva_reserva['criterio'])
     hora_inicio_rango = nueva_reserva['hora_inicio_rango']
     hora_fin_rango = nueva_reserva['hora_fin_rango']
-
+    # --- NUEVA LÓGICA: Determinar duración requerida ---
+    # Asumimos que la duración requerida se basa en el rango preferido o un valor por defecto.
+    # Por ejemplo, si el rango es de 2 horas, se busca un bloque de 2 horas.
+    duracion_rango_minutos = time_to_minutes(hora_fin_rango) - time_to_minutes(hora_inicio_rango)
+    duracion_rango_horas = duracion_rango_minutos / 60.0
+    # Limitar la duración requerida a 1, 2 o 3 horas
+    if duracion_rango_horas >= 3:
+        duracion_requerida_horas = 3
+    elif duracion_rango_horas >= 2:
+        duracion_requerida_horas = 2
+    elif duracion_rango_horas >= 1:
+        duracion_requerida_horas = 1
+    else:
+        # Si el rango es menor a 1 hora, usar 1 hora como mínimo
+        duracion_requerida_horas = 1
+    # --- FIN NUEVA LÓGICA ---
     reservas_temporales = [r.copy() for r in reservas_existentes]
-
     horarios_disponibles = encontrar_horarios_disponibles_en_rango(
-        fecha, hora_inicio_rango, hora_fin_rango, reservas_temporales
+        fecha, hora_inicio_rango, hora_fin_rango, reservas_temporales, duracion_requerida_horas
     )
 
     if horarios_disponibles:
         inicio_asignado, fin_asignado = horarios_disponibles[0]
         nueva_reserva['hora_inicio'] = inicio_asignado
         nueva_reserva['hora_fin'] = fin_asignado
+        # --- CÁLCULO AUTOMÁTICO DE DURACIÓN ---
+        duracion_calc = (time_to_minutes(fin_asignado) - time_to_minutes(inicio_asignado)) / 60.0
+        nueva_reserva['duracion_horas'] = round(duracion_calc, 2) # Asignar duración calculada
+        # --- FIN CÁLCULO AUTOMÁTICO DE DURACIÓN ---
         reservas_temporales.append(nueva_reserva)
         return True, reservas_temporales, (inicio_asignado, fin_asignado), []
 
@@ -551,27 +549,28 @@ def procesar_reserva_con_rango_y_prioridad(nueva_reserva, reservas_existentes):
 
     if not conflictos_en_rango:
         todos_horarios_dia = encontrar_horarios_disponibles_en_rango(
-            fecha, HORA_INICIO_DIA, HORA_FIN_DIA, reservas_temporales
+            fecha, HORA_INICIO_DIA, HORA_FIN_DIA, reservas_temporales, duracion_requerida_horas
         )
         horarios_en_rango = []
         for inicio, fin in todos_horarios_dia:
             if verificar_solapamiento(inicio, fin, hora_inicio_rango, hora_fin_rango):
                 horarios_en_rango.append((inicio, fin))
-
         if horarios_en_rango:
             inicio_asignado, fin_asignado = horarios_en_rango[0]
             nueva_reserva['hora_inicio'] = inicio_asignado
             nueva_reserva['hora_fin'] = fin_asignado
+            # --- CÁLCULO AUTOMÁTICO DE DURACIÓN ---
+            duracion_calc = (time_to_minutes(fin_asignado) - time_to_minutes(inicio_asignado)) / 60.0
+            nueva_reserva['duracion_horas'] = round(duracion_calc, 2) # Asignar duración calculada
+            # --- FIN CÁLCULO AUTOMÁTICO DE DURACIÓN ---
             reservas_temporales.append(nueva_reserva)
             return True, reservas_temporales, (inicio_asignado, fin_asignado), []
         else:
             return False, reservas_existentes, None, []
 
     conflictos_ordenados = sorted(conflictos_en_rango, key=lambda x: obtener_prioridad(x['criterio']))
-
     reservas_a_desplazar = []
     reservas_fijas = []
-
     for conflicto in conflictos_ordenados:
         prioridad_conflicto = obtener_prioridad(conflicto['criterio'])
         if prioridad_nueva < prioridad_conflicto:
@@ -588,11 +587,9 @@ def procesar_reserva_con_rango_y_prioridad(nueva_reserva, reservas_existentes):
             reservas_fijas.append(conflicto)
 
     todas_reservas_fijas = [r for r in reservas_temporales if r not in reservas_a_desplazar]
-
     horarios_con_fijas = encontrar_horarios_disponibles_en_rango(
-        fecha, HORA_INICIO_DIA, HORA_FIN_DIA, todas_reservas_fijas
+        fecha, HORA_INICIO_DIA, HORA_FIN_DIA, todas_reservas_fijas, duracion_requerida_horas
     )
-
     horarios_validos = []
     for inicio, fin in horarios_con_fijas:
         if verificar_solapamiento(inicio, fin, hora_inicio_rango, hora_fin_rango):
@@ -604,15 +601,29 @@ def procesar_reserva_con_rango_y_prioridad(nueva_reserva, reservas_existentes):
     inicio_nuevo, fin_nuevo = horarios_validos[0]
     nueva_reserva['hora_inicio'] = inicio_nuevo
     nueva_reserva['hora_fin'] = fin_nuevo
-
+    # --- CÁLCULO AUTOMÁTICO DE DURACIÓN ---
+    duracion_calc = (time_to_minutes(fin_nuevo) - time_to_minutes(inicio_nuevo)) / 60.0
+    nueva_reserva['duracion_horas'] = round(duracion_calc, 2) # Asignar duración calculada
+    # --- FIN CÁLCULO AUTOMÁTICO DE DURACIÓN ---
     reservas_reubicadas_exitosamente = []
     reservas_fallidas = []
-
     for reserva_desplazar in reservas_a_desplazar:
+        # Usar la duración de la reserva a reubicar (asumida como 1.5 si no está)
+        duracion_requerida_reubicar = reserva_desplazar.get('duracion_horas', 1.5)
+        # Ajustar duracion_requerida_reubicar a 1, 2 o 3 horas si es necesario
+        if duracion_requerida_reubicar >= 3:
+            duracion_requerida_reubicar = 3
+        elif duracion_requerida_reubicar >= 2:
+            duracion_requerida_reubicar = 2
+        elif duracion_requerida_reubicar >= 1:
+            duracion_requerida_reubicar = 1
+        else:
+            duracion_requerida_reubicar = 1
         exito, nueva_reserva_desplazada = reubicar_reserva(
             reserva_desplazar,
             [r for r in todas_reservas_fijas if r['fecha'] == fecha] + [nueva_reserva],
-            fecha
+            fecha,
+            duracion_requerida_reubicar
         )
         if exito:
             reservas_reubicadas_exitosamente.append(nueva_reserva_desplazada)
@@ -625,7 +636,7 @@ def procesar_reserva_con_rango_y_prioridad(nueva_reserva, reservas_existentes):
     reservas_finales = todas_reservas_fijas + [nueva_reserva] + reservas_reubicadas_exitosamente
     return True, reservas_finales, (inicio_nuevo, fin_nuevo), reservas_reubicadas_exitosamente
 
-# Funciones para métricas y gráficos (sin cambios)
+# Funciones para métricas y gráficos (sin cambios o ligeramente adaptadas)
 def calcular_metricas(reservas):
     if not reservas:
         return {
@@ -633,15 +644,13 @@ def calcular_metricas(reservas):
             'reservas_mes_actual': 0,
             'tasa_ocupacion': 0,
             'promedio_asistentes': 0,
-            'reuniones_por_prioridad': {}
+            'reuniones_por_prioridad': {},
+            'horas_totales_reservadas': 0 # Añadido para métrica de duración
         }
-
     hoy = obtener_hora_local() # <-- Cambiado a hora local
     mes_actual = hoy.month
-
     # Filtrar solo reservas que tienen una clave 'fecha' válida
     reservas_con_fecha = [r for r in reservas if 'fecha' in r and r['fecha']]
-
     reservas_mes = []
     for r in reservas_con_fecha:
         try:
@@ -653,9 +662,10 @@ def calcular_metricas(reservas):
             print(f"Advertencia: Fecha inválida '{r['fecha']}' en reserva {r.get('id', 'desconocido')}, ignorando para métricas mensuales.")
             continue # Saltar esta reserva para métricas mensuales
 
-    # Calcular tasa de ocupación (asumiendo 9 horas x 5 días x 4 semanas)
-    horas_totales_mes = 9 * 5 * 4  # 180 horas disponibles
-    horas_reservadas = len(reservas_mes) * 1.5  # cada reunión dura 1.5 horas
+    # Calcular tasa de ocupación y horas totales (considerando duración)
+    # Usamos 1.5 horas como duración por defecto para reservas antiguas
+    horas_totales_mes = 9 * 5 * 4  # 180 horas disponibles estimadas
+    horas_reservadas = sum([r.get('duracion_horas', 1.5) for r in reservas_mes]) # Sumar duración real o por defecto
     tasa_ocupacion = (horas_reservadas / horas_totales_mes) * 100 if horas_totales_mes > 0 else 0
 
     # Promedio de asistentes
@@ -673,7 +683,8 @@ def calcular_metricas(reservas):
         'reservas_mes_actual': len(reservas_mes),
         'tasa_ocupacion': round(tasa_ocupacion, 1),
         'promedio_asistentes': round(promedio_asistentes, 1),
-        'reuniones_por_prioridad': reuniones_por_prioridad
+        'reuniones_por_prioridad': reuniones_por_prioridad,
+        'horas_totales_reservadas': horas_reservadas # Añadido
     }
 
 def crear_grafico_ocupacion_semanal(reservas):
@@ -681,7 +692,6 @@ def crear_grafico_ocupacion_semanal(reservas):
         fig = go.Figure()
         fig.add_annotation(text="No hay datos disponibles", showarrow=False, font_size=16)
         return fig
-
     # Agrupar por día de la semana, solo con fechas válidas
     dias_semana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
     conteo_dias = {dia: 0 for dia in dias_semana}
@@ -695,7 +705,6 @@ def crear_grafico_ocupacion_semanal(reservas):
             except ValueError:
                 print(f"Advertencia: Fecha inválida '{r['fecha']}' en reserva {r.get('id', 'desconocido')}, ignorando para gráfico semanal.")
                 continue # Saltar esta reserva
-
     fig = go.Figure(data=[
         go.Bar(
             x=list(conteo_dias.keys()),
@@ -705,7 +714,6 @@ def crear_grafico_ocupacion_semanal(reservas):
             textposition='outside'
         )
     ])
-
     fig.update_layout(
         title="Distribución de Reuniones por Día de la Semana",
         xaxis_title="Día",
@@ -723,11 +731,9 @@ def crear_grafico_prioridades(metricas):
         fig = go.Figure()
         fig.add_annotation(text="No hay datos disponibles", showarrow=False, font_size=16)
         return fig
-
     labels = list(metricas['reuniones_por_prioridad'].keys())
     values = list(metricas['reuniones_por_prioridad'].values())
     colors = ['#ef4444', '#f59e0b', '#3b82f6', '#6b7280']
-
     fig = go.Figure(data=[go.Pie(
         labels=labels,
         values=values,
@@ -736,7 +742,6 @@ def crear_grafico_prioridades(metricas):
         textinfo='label+percent',
         textposition='outside'
     )])
-
     fig.update_layout(
         title="Distribución por Criterio de Prioridad",
         height=350,
@@ -752,7 +757,6 @@ def crear_grafico_tendencia_mensual(reservas):
         fig = go.Figure()
         fig.add_annotation(text="No hay datos disponibles", showarrow=False, font_size=16)
         return fig
-
     # Agrupar por mes, solo con fechas válidas
     reservas_por_mes = {}
     for r in reservas:
@@ -764,10 +768,8 @@ def crear_grafico_tendencia_mensual(reservas):
             except ValueError:
                 print(f"Advertencia: Fecha inválida '{r['fecha']}' en reserva {r.get('id', 'desconocido')}, ignorando para gráfico mensual.")
                 continue # Saltar esta reserva
-
     meses = sorted(reservas_por_mes.keys())
     valores = [reservas_por_mes[m] for m in meses]
-
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=meses,
@@ -779,7 +781,6 @@ def crear_grafico_tendencia_mensual(reservas):
         fill='tozeroy',
         fillcolor='rgba(102, 126, 234, 0.1)'
     ))
-
     fig.update_layout(
         title="Tendencia de Reservas Mensuales",
         xaxis_title="Mes",
@@ -797,11 +798,9 @@ def crear_mapa_calor_horarios(reservas):
         fig = go.Figure()
         fig.add_annotation(text="No hay datos disponibles", showarrow=False, font_size=16)
         return fig
-
     dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
     horas = [f"{h:02d}:00" for h in range(8, 17)]
     matriz = [[0 for _ in range(len(horas))] for _ in range(len(dias))]
-
     for r in reservas:
         if 'fecha' in r and r['fecha'] and 'hora_inicio' in r and r['hora_inicio']:
             try:
@@ -815,7 +814,6 @@ def crear_mapa_calor_horarios(reservas):
             except ValueError:
                 print(f"Advertencia: Fecha u hora inválida en reserva {r.get('id', 'desconocido')}: fecha='{r.get('fecha')}', hora_inicio='{r.get('hora_inicio')}', ignorando para mapa de calor.")
                 continue # Saltar esta reserva
-
     fig = go.Figure(data=go.Heatmap(
         z=matriz,
         x=horas,
@@ -826,7 +824,6 @@ def crear_mapa_calor_horarios(reservas):
         textfont={"size": 10},
         colorbar=dict(title="Reuniones")
     ))
-
     fig.update_layout(
         title="Mapa de Calor: Horarios Más Solicitados",
         xaxis_title="Hora",
@@ -840,10 +837,8 @@ def crear_mapa_calor_horarios(reservas):
 # Inicializar reservas (ahora desde Google Sheets)
 if 'reservas' not in st.session_state:
     st.session_state.reservas = cargar_reservas()
-
 # Navegación por pestañas
 tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "📝 Nueva Reserva", "📋 Gestión de Reservas"])
-
 with tab1:
     cols1,cols2 = st.columns([2,6])
     with cols1:
@@ -857,10 +852,8 @@ with tab1:
             <p>Gestión Inteligente con Análisis de Datos en Tiempo Real</p>
         </div>
         """, unsafe_allow_html=True)
-
     # Calcular métricas
     metricas = calcular_metricas(st.session_state.reservas)
-
     # Métricas principales
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -895,16 +888,13 @@ with tab1:
             <p class="metric-delta">↑ Por reunión</p>
         </div>
         """, unsafe_allow_html=True)
-
     st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
-
     # Gráficos
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         st.plotly_chart(crear_grafico_ocupacion_semanal(st.session_state.reservas), use_container_width=True, key="grafico_ocupacion_semanal")
     with col_g2:
         st.plotly_chart(crear_grafico_prioridades(metricas), use_container_width=True, key="grafico_prioridades")
-
     # Segunda fila de gráficos
     col_g3, col_g4 = st.columns(2)
     with col_g3:
@@ -941,11 +931,9 @@ with tab1:
                 st.info("📊 No hay datos con fecha válida suficientes para mostrar este gráfico")
         else:
             st.info("📊 No hay datos suficientes para mostrar este gráfico")
-
     # Mapa de calor completo
     st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
     st.plotly_chart(crear_mapa_calor_horarios(st.session_state.reservas), use_container_width=True, key="mapa_calor_horarios")
-
     # Información adicional
     st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
     col_info1, col_info2, col_info3 = st.columns(3)
@@ -969,11 +957,10 @@ with tab1:
         st.markdown("""
         <div class="warning-box">
             <h4>📋 Plazos</h4>
-            <p><strong>24h - 48h hábiles</strong></p>
+            <p><strong>1-2 días hábiles</strong></p>
             <p>Según prioridad</p>
         </div>
         """, unsafe_allow_html=True)
-
 with tab2:
     st.markdown("""
     <div class="main-header">
@@ -981,14 +968,12 @@ with tab2:
         <p>Complete el formulario para solicitar una sala de reuniones</p>
     </div>
     """, unsafe_allow_html=True)
-
     st.markdown('<div class="form-section">', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("### 👤 Información del Solicitante")
         nombre = st.text_input("Nombre completo *", key="nombre", placeholder="Ej: Juan Pérez")
         email = st.text_input("Correo electrónico *", key="email", placeholder="ejemplo@empresa.cl")
-
         st.markdown("### 📅 Detalles de la Reunión")
         fecha = st.date_input(
             "Fecha de la reunión *",
@@ -996,7 +981,6 @@ with tab2:
             key="fecha"
         )
         fecha_str = fecha.strftime('%Y-%m-%d')
-
         criterio = st.selectbox(
             "Criterio de prioridad *",
             options=[
@@ -1024,7 +1008,12 @@ with tab2:
             # Mantener la línea original sin min_value ni max_value
             hora_fin_rango = st.time_input("Fin preferido *", value=time(16, 0), key="fin_rango")
 
-        st.info("💡 El sistema asignará un horario de 1.5 horas dentro de su rango preferido")
+        # --- ELIMINAR SELECCIÓN DE DURACIÓN ---
+        # No se muestra el selectbox de duración
+        # Calcular la duración del rango seleccionado
+        duracion_rango_minutos = time_to_minutes(hora_fin_rango) - time_to_minutes(hora_inicio_rango)
+        duracion_rango_horas = duracion_rango_minutos / 60.0
+        st.info(f"💡 Duración del rango seleccionado: {duracion_rango_horas:.2f} horas")
 
         st.markdown("### 👥 Información Adicional")
         num_asistentes = st.number_input(
@@ -1041,18 +1030,21 @@ with tab2:
             key="proposito",
             placeholder="Describa brevemente el objetivo de la reunión..."
         )
-
     st.markdown('</div>', unsafe_allow_html=True)
-
     # Validar rango horario
     rango_valido = True
-    if hora_fin_rango <= hora_inicio_rango:
-        st.error("❌ La hora de fin debe ser posterior a la hora de inicio")
+    # Ajustar la validación para permitir rangos de al menos 1 hora
+    duracion_minima_requerida = 1 * 60 # 1 hora en minutos
+    duracion_rango_minutos = time_to_minutes(hora_fin_rango) - time_to_minutes(hora_inicio_rango)
+    if hora_inicio_rango >= hora_fin_rango:
+        st.error("❌ La hora de inicio debe ser anterior a la hora de fin")
         rango_valido = False
+    elif duracion_rango_minutos < duracion_minima_requerida:
+         st.error(f"❌ El rango horario debe permitir al menos 1 hora de reunión")
+         rango_valido = False
     elif hora_inicio_rango < HORA_INICIO_DIA or hora_fin_rango > HORA_FIN_DIA:
         st.error(f"❌ El rango horario debe estar entre {HORA_INICIO_DIA.strftime('%H:%M')} y {HORA_FIN_DIA.strftime('%H:%M')}")
         rango_valido = False
-
     # Botón de reserva
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
@@ -1071,12 +1063,10 @@ with tab2:
                 errores.append("❌ El rango horario no es válido")
             if criterio.startswith("4") and num_asistentes < 4:
                 errores.append("❌ Las reuniones generales deben tener mínimo 4 personas")
-
             if criterio:
                 plazo_valido, mensaje_plazo = validar_plazo_reserva(fecha, criterio)
                 if not plazo_valido:
                     errores.append(f"❌ {mensaje_plazo}")
-
             # Mostrar errores
             if errores:
                 for error in errores:
@@ -1094,33 +1084,36 @@ with tab2:
                     "criterio": criterio,
                     "num_asistentes": int(num_asistentes),
                     "proposito": proposito.strip(),
-                    "fecha_reserva": obtener_hora_local().strftime('%Y-%m-%d %H:%M:%S') # <-- Cambiado a hora local
+                    "fecha_reserva": obtener_hora_local().strftime('%Y-%m-%d %H:%M:%S'), # <-- Cambiado a hora local
+                    # No se incluye 'duracion_horas' aquí, se calculará después
                 }
-
                 # --- GENERAR ID ÚNICO ANTES DEL PROCESAMIENTO ---
                 # Cargar la lista de reservas *antes* de procesar para calcular el ID
                 id_unica = generar_id_unica_para_fecha(fecha_str)
                 nueva_reserva['id'] = id_unica
                 print(f"ID generado antes del procesamiento: {id_unica}")
                 # --- FIN GENERAR ID ÚNICO ---
-
                 # Procesar reserva
                 exito, reservas_actualizadas, horario_asignado, reservas_reubicadas = procesar_reserva_con_rango_y_prioridad(
                     nueva_reserva, st.session_state.reservas
                 )
-
                 if exito:
                     # Asignar horario a la nueva_reserva original (ya tiene el ID)
                     nueva_reserva['hora_inicio'] = horario_asignado[0]
                     nueva_reserva['hora_fin'] = horario_asignado[1]
-
+                    # La duración ya fue calculada y asignada en procesar_reserva_con_rango_y_prioridad
+                    duracion_calculada = nueva_reserva['duracion_horas']
                     # Guardar la reserva en Google Sheets (el ID ya está asignado)
-                    record_id = guardar_reserva(nueva_reserva)
+                    # Importante: Quitar 'duracion_horas' antes de guardar
+                    reserva_a_guardar = nueva_reserva.copy()
+                    del reserva_a_guardar['duracion_horas']
+                    record_id = guardar_reserva(reserva_a_guardar)
                     if record_id:
                         # El ID ya está en nueva_reserva, no es necesario asignarlo de nuevo aquí
                         # --- CORRECCIÓN AQUÍ ---
                         # Actualizar la lista principal (reservas) con la lista procesada
                         # para que coincida con la lista procesada y guardada
+                        # Asegurarse de que las reservas en la lista tengan 'duracion_horas' para la lógica interna
                         st.session_state.reservas = []
                         for r_proc in reservas_actualizadas:
                             r_proc_id = r_proc.get('id', '')
@@ -1145,9 +1138,10 @@ with tab2:
                                         r_proc.get('email') == nueva_reserva['email']):
                                         r_proc['id'] = nueva_reserva['id'] # Asignar ID de la nueva reserva
                                         print(f"Asignando ID original {nueva_reserva['id']} a la nueva reserva procesada: {r_proc}")
-
+                            # Asegurar que 'duracion_horas' esté presente para la lógica futura
+                            if 'duracion_horas' not in r_proc:
+                                r_proc['duracion_horas'] = 1.5 # Asignar valor por defecto si no está
                             st.session_state.reservas.append(r_proc)
-
                         # Mensaje de éxito
                         st.markdown("""
                         <div class="success-box">
@@ -1156,13 +1150,13 @@ with tab2:
                         </div>
                         """, unsafe_allow_html=True)
                         st.balloons()
-
                         # Detalles de la reserva
                         col_d1, col_d2 = st.columns(2)
                         with col_d1:
                             st.markdown("### 📋 Detalles de su Reserva")
                             st.write(f"**📅 Fecha:** {fecha_str}")
                             st.write(f"**🕐 Horario:** {horario_asignado[0]} - {horario_asignado[1]}")
+                            st.write(f"**⏱️ Duración calculada:** {duracion_calculada} hora(s)") # Mostrar duración calculada
                             st.write(f"**🏷️ Criterio:** {criterio}")
                             st.write(f"**👥 Asistentes:** {num_asistentes}")
                         with col_d2:
@@ -1171,7 +1165,6 @@ with tab2:
                             st.write(f"**🔑 ID:** {record_id}")
                             st.write(f"**📅 Solicitado:** {obtener_hora_local().strftime('%d/%m/%Y %H:%M')}") # <-- Cambiado a hora local
                             st.write(f"**📝 Rango:** {hora_inicio_rango.strftime('%H:%M')} - {hora_fin_rango.strftime('%H:%M')}")
-
                         if reservas_reubicadas:
                             st.markdown("""
                             <div class="info-box">
@@ -1184,7 +1177,6 @@ with tab2:
                         st.error("❌ Error al guardar la reserva en Google Sheets.")
                 else:
                     st.error("❌ No se pudo asignar un horario. No hay disponibilidad en el rango solicitado.")
-
 with tab3:
     st.markdown("""
     <div class="main-header">
@@ -1192,7 +1184,6 @@ with tab3:
         <p>Visualice y administre todas las reservas programadas</p>
     </div>
     """, unsafe_allow_html=True)
-
     # Botón de actualización
     col_act1, col_act2, col_act3 = st.columns([1, 1, 1])
     with col_act2:
@@ -1200,7 +1191,6 @@ with tab3:
             # Recargar la lista desde Google Sheets
             st.session_state.reservas = cargar_reservas()
             st.success("✅ Lista actualizada correctamente")
-
     # Filtros
     st.markdown("### 🔍 Filtros")
     col_f1, col_f2, col_f3 = st.columns(3)
@@ -1214,10 +1204,8 @@ with tab3:
         fecha_desde = st.date_input("Desde", value=obtener_hora_local().date()) # <-- Cambiado a hora local
     with col_f3:
         fecha_hasta = st.date_input("Hasta", value=obtener_hora_local().date() + timedelta(days=30)) # <-- Cambiado a hora local
-
-    # --- NUEVO: Pestañas para Lista y Calendario ---
-    view_tab1, view_tab2 = st.tabs(["📋 Lista de Reservas", "📅 Vista de Calendario"])
-
+    # --- NUEVO: Pestañas para Lista y Vista Tipo Calendario ---
+    view_tab1, view_tab2 = st.tabs(["📋 Lista de Reservas", "📅 Vista Tipo Calendario"])
     with view_tab1: # Contenido original de la lista
         # Obtener reservas futuras basadas en los filtros
         reservas_futuras = []
@@ -1237,14 +1225,12 @@ with tab3:
             except ValueError:
                 print(f"Advertencia: Fecha inválida '{reserva['fecha']}' en reserva {reserva.get('id', 'desconocido')}, ignorando filtro.")
                 continue # Saltar esta reserva si la fecha es inválida
-
         if reservas_futuras:
             # Agregar prioridad numérica
             for reserva in reservas_futuras:
                 reserva['prioridad_num'] = obtener_prioridad(reserva['criterio'])
             df_reservas = pd.DataFrame(reservas_futuras)
             df_reservas = df_reservas.sort_values(['fecha', 'prioridad_num', 'hora_inicio'])
-
             # Mostrar estadísticas del filtro
             col_est1, col_est2, col_est3, col_est4 = st.columns(4)
             with col_est1:
@@ -1258,24 +1244,21 @@ with tab3:
             with col_est4:
                 prioridad_alta = len(df_reservas[df_reservas['prioridad_num'] <= 2])
                 st.metric("⭐ Alta Prioridad", prioridad_alta)
-
             st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
-
             # Tabla de reservas con diseño mejorado
             st.markdown("### 📊 Lista de Reservas")
+            # Quitar 'duracion_horas' de la visualización en la tabla
             columnas_mostrar = ['id', 'fecha', 'hora_inicio', 'hora_fin', 'nombre', 'email',
                                'criterio', 'num_asistentes', 'proposito']
             df_display = df_reservas[columnas_mostrar].copy()
             df_display.columns = ['ID', 'Fecha', 'Inicio', 'Fin', 'Nombre', 'Email',
                                  'Criterio', 'Asistentes', 'Propósito']
-
             # Formatear propósito
             df_display['Propósito'] = df_display['Propósito'].apply(
                 lambda x: x[:50] + '...' if len(str(x)) > 50 else x
             )
             # Formatear fecha
             df_display['Fecha'] = pd.to_datetime(df_display['Fecha'], errors='coerce').dt.strftime('%d/%m/%Y')
-
             # Mostrar tabla con formato
             st.dataframe(
                 df_display,
@@ -1283,7 +1266,6 @@ with tab3:
                 height=400,
                 hide_index=True
             )
-
             # Opción de descarga
             st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
             csv = df_display.to_csv(index=False).encode('utf-8')
@@ -1301,80 +1283,122 @@ with tab3:
                 <p>No se encontraron reservas con los filtros aplicados</p>
             </div>
             """, unsafe_allow_html=True)
+    with view_tab2: # Nueva pestaña para una Vista tipo Calendario alternativa
+        st.markdown("### 📅 Vista Tipo Calendario")
 
-    with view_tab2: # Nueva pestaña para la vista de calendario
-        st.markdown("### 📅 Calendario de Reservas")
-        # Filtrar reservas para el calendario basado en los filtros de fecha y criterio
-        eventos_calendario = []
-        for reserva in st.session_state.reservas:
-            if 'fecha' not in reserva:
-                continue
-            try:
-                fecha_reserva_dt = datetime.strptime(reserva['fecha'], '%Y-%m-%d')
-                fecha_reserva = fecha_reserva_dt.date()
-                if fecha_reserva < fecha_desde or fecha_reserva > fecha_hasta:
-                    continue
-                if filtro_criterio and reserva['criterio'] not in filtro_criterio:
-                    continue
+        # --- Selector de Mes para el Calendario de Calor ---
+        # Definir nombres de meses en español
+        nombres_meses_es = [
+            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        ]
 
-                # Determinar color basado en la prioridad
-                color_evento = "#667eea" # Default
-                if reserva['criterio'].startswith("1"): # Supervisión
-                    color_evento = "#ef4444"
-                elif reserva['criterio'].startswith("2"): # Comunidad
-                    color_evento = "#f59e0b"
-                elif reserva['criterio'].startswith("3"): # Equipos
-                    color_evento = "#3b82f6"
-                elif reserva['criterio'].startswith("4"): # Generales
-                    color_evento = "#6b7280"
+        # Usamos la hora local para determinar el mes/ año por defecto
+        hoy_local = obtener_hora_local().date()
 
-                # Formatear la hora de inicio y fin para mostrar en el evento
-                hora_inicio = reserva.get('hora_inicio', 'N/A')
-                hora_fin = reserva.get('hora_fin', 'N/A')
-                horario_texto = f"{hora_inicio} - {hora_fin}"
+        # Selector para elegir el mes y año a visualizar
+        col_mes, col_anio, _ = st.columns([2, 2, 4]) # Dar espacio extra al final
+        with col_mes:
+            # Usar índice para seleccionar el mes por defecto (1-12 -> 0-11)
+            mes_seleccionado = st.selectbox(
+                "Seleccionar Mes",
+                options=list(range(1, 13)), # Valores 1 a 12
+                format_func=lambda x: nombres_meses_es[x - 1], # Mapear 1->Enero, ..., 12->Diciembre
+                index=hoy_local.month - 1, # Por defecto, el mes actual (ajustar índice 0-based)
+                key="cal_selector_mes"
+            )
+        with col_anio:
+            anio_seleccionado = st.number_input(
+                "Seleccionar Año",
+                min_value=2020,
+                max_value=2030,
+                value=hoy_local.year, # Por defecto, el año actual
+                step=1,
+                key="cal_selector_anio"
+            )
+        # --- Fin Selector de Mes ---
 
-                # Crear el evento para el calendario
-                evento = {
-                    "title": f"[{reserva.get('id', 'N/A')}] {reserva.get('nombre', 'Anónimo')}",
-                    "start": reserva['fecha'], # Formato 'YYYY-MM-DD'
-                    "end": reserva['fecha'],   # Mismo día para eventos de un día
-                    "description": f"Criterio: {reserva['criterio']}\nHorario: {horario_texto}",
-                    "color": color_evento
-                }
-                eventos_calendario.append(evento)
-            except ValueError:
-                print(f"Advertencia: Fecha inválida '{reserva['fecha']}' en reserva {reserva.get('id', 'desconocido')}, ignorando para calendario.")
-                continue
+        # --- Generar Datos para el Calendario de Calor del Mes Seleccionado ---
+        # 1. Filtrar reservas por el mes y año seleccionados
+        reservas_mes_seleccionado = []
+        for r in st.session_state.reservas:
+            if 'fecha' in r and r['fecha']:
+                try:
+                    fecha_reserva = datetime.strptime(r['fecha'], '%Y-%m-%d').date()
+                    # Aplicar filtro de mes y año seleccionados
+                    if fecha_reserva.year == anio_seleccionado and fecha_reserva.month == mes_seleccionado:
+                         # Aplicar también el filtro de criterio global de la pestaña
+                        if not filtro_criterio or r['criterio'] in filtro_criterio:
+                            reservas_mes_seleccionado.append(r)
+                except ValueError:
+                    continue # Ignorar fechas inválidas
 
-        # Configuración del calendario
-        calendar_options = {
-            "editable": "false", # Hacerlo no editable
-            "navLinks": "true",  # Permitir navegación
-            "resources": "false", # No usar recursos
-            "initialView": "dayGridMonth", # Vista inicial: mes
-            "headerToolbar": {
-                "left": "prev,next today",
-                "center": "title",
-                "right": "dayGridMonth,timeGridWeek,timeGridDay"
-            },
-            "events": eventos_calendario
-        }
+        # 2. Contar reuniones por día
+        conteo_dias = {}
+        if reservas_mes_seleccionado:
+            for r in reservas_mes_seleccionado:
+                fecha_str = r['fecha']
+                conteo_dias[fecha_str] = conteo_dias.get(fecha_str, 0) + 1
 
-        # Mostrar el calendario
-        calendar(
-            events=calendar_options["events"],
-            options=calendar_options,
-            custom_css="""
-                .fc-event-main {
-                    font-size: 0.8em;
-                }
-                .fc-event-title {
-                    font-weight: bold;
-                }
-            """
-        )
+        # --- Fin Generación de Datos ---
 
+        # --- Mostrar Calendario de Calor Mensual ---
+        if conteo_dias:
+            # Crear una lista de tuplas (fecha_str, count) y ordenarla por fecha
+            datos_ordenados = sorted(conteo_dias.items())
+            fechas_plot = [item[0] for item in datos_ordenados]
+            conteos_plot = [item[1] for item in datos_ordenados]
 
+            # Crear el gráfico de barras con Plotly
+            fig_calendario = go.Figure(data=go.Bar(
+                x=fechas_plot,
+                y=conteos_plot,
+                marker_color='#667eea',
+                text=conteos_plot,
+                textposition='outside'
+            ))
+
+            # Configurar el layout del gráfico
+            # Obtener el nombre del mes en español usando el índice
+            nombre_mes = nombres_meses_es[mes_seleccionado - 1]
+            fig_calendario.update_layout(
+                title=f"Reuniones en {nombre_mes} {anio_seleccionado}",
+                xaxis_title="Fecha",
+                yaxis_title="Número de Reuniones",
+                height=400,
+                margin=dict(l=20, r=20, t=40, b=20),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(family="Inter, sans-serif")
+            )
+            # Mostrar el gráfico
+            st.plotly_chart(fig_calendario, use_container_width=True, key=f"calendario_calor_{mes_seleccionado}_{anio_seleccionado}")
+
+            # Mostrar lista resumida de eventos en ese día si se hace clic (opcional, simplificado)
+            # Aquí simplemente mostramos la lista completa filtrada por mes
+            st.markdown(f"#### 📋 Reuniones en {nombre_mes} {anio_seleccionado}")
+            # Reutilizamos la lógica de la tabla pero solo para el mes seleccionado
+            df_reservas_mes = pd.DataFrame(reservas_mes_seleccionado)
+            # Agregar prioridad numérica para ordenar
+            df_reservas_mes['prioridad_num'] = df_reservas_mes['criterio'].map(obtener_prioridad)
+            df_reservas_mes = df_reservas_mes.sort_values(['fecha', 'prioridad_num', 'hora_inicio'])
+
+            # Columnas a mostrar (quitando duracion_horas si se desea)
+            columnas_mostrar_cal = ['id', 'fecha', 'hora_inicio', 'hora_fin', 'nombre', 'email', 'criterio', 'num_asistentes']
+            df_display_cal = df_reservas_mes[columnas_mostrar_cal].copy()
+            df_display_cal.columns = ['ID', 'Fecha', 'Inicio', 'Fin', 'Nombre', 'Email', 'Criterio', 'Asistentes']
+
+            # Formatear fechas
+            df_display_cal['Fecha'] = pd.to_datetime(df_display_cal['Fecha']).dt.strftime('%d/%m/%Y')
+
+            st.dataframe(df_display_cal, use_container_width=True, hide_index=True)
+
+        else:
+            # Obtener el nombre del mes en español para el mensaje
+            nombre_mes = nombres_meses_es[mes_seleccionado - 1]
+            st.info(f"ℹ️ No se encontraron reservas para {nombre_mes} de {anio_seleccionado} con los criterios seleccionados.")
+
+        # --- Fin Mostrar Calendario de Calor ---
 # Sidebar con información y carga de logo
 with st.sidebar:
     st.markdown("""
@@ -1383,26 +1407,22 @@ with st.sidebar:
         <p style='color: #666; font-size: 0.9rem;'>Versión 2.0 Professional</p>
     </div>
     """, unsafe_allow_html=True)
-
     st.markdown("---")
-
     st.markdown("### 📋 Guía Rápida")
     with st.expander("🕐 Horarios"):
         st.markdown("""
         - **Operación:** 08:00 - 17:00
         - **Días:** Lunes a Viernes
-        - **Duración:** 1.5 horas por reunión
+        - **Duración:** Calculada como la diferencia entre horario de inicio y fin asignado.
         - **Bloques:** Cada 30 minutos
         """)
-
     with st.expander("📅 Plazos de Reserva"):
         st.markdown("""
         **Alta Prioridad (1-2):**
-        - Mínimo 24 horas hábiles
+        - Mínimo 1 día hábil
         **Prioridad Normal (3-4):**
-        - Mínimo 48 horas hábiles
+        - Mínimo 2 días hábiles
         """)
-
     with st.expander("🥇 Criterios de Prioridad"):
         st.markdown("""
         1. **Supervisión** - Máxima
@@ -1410,7 +1430,6 @@ with st.sidebar:
         3. **Equipos** - Media
         4. **General** - Baja (mín. 4 personas)
         """)
-
     with st.expander("⚖️ Política de Reubicación"):
         st.markdown("""
         - Solo reservas del **mismo día**
@@ -1418,16 +1437,13 @@ with st.sidebar:
         - Confirmadas **no se modifican**
         - Sistema **automático**
         """)
-
     st.markdown("---")
-
     # Información del sistema
     st.markdown("### ℹ️ Estado del Sistema")
     st.success("🟢 Sistema Operativo")
     hora_actual_local = obtener_hora_local() # <-- Cambiado a hora local
     st.info(f"📅 {hora_actual_local.strftime('%d/%m/%Y %H:%M')}")
     st.caption(f"Total de reservas: {len(st.session_state.reservas)}")
-
 # Footer
 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 st.markdown("""
@@ -1439,7 +1455,6 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
-
 # Añadir pie de página adicional con logo y contacto
 with st.container():
         col1, col2, col3, col4 = st.columns([3,1,5,1])
