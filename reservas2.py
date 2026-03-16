@@ -70,6 +70,41 @@ service = build('sheets', 'v4', credentials=creds)
 # ID de la hoja de cálculo (reemplaza con tu propio ID)
 SPREADSHEET_ID = '1ojDb593qqFO0xDmbYNzpNWI4gwbbQpVXEt8ggPHIwYg'
 SHEET_NAME = 'Hoja 1' # Nombre de la hoja donde se almacenan las reservas
+# --- Retry Logic for Google Sheets API ---
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+from googleapiclient.errors import HttpError
+
+def es_error_reintentable(exception):
+    """Verifica si el error es un 5xx reintentable de la API de Google."""
+    if isinstance(exception, HttpError):
+        return exception.resp.status in [500, 502, 503, 504]
+    return False
+
+decorador_retry = retry(
+    retry=retry_if_exception(es_error_reintentable),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(5),
+    reraise=True
+)
+
+@decorador_retry
+def _ejecutar_api_cargar(range_name):
+    """Carga datos con reintentos."""
+    return service.spreadsheets().values().get(
+        spreadsheetId=SPREADSHEET_ID,
+        range=range_name
+    ).execute()
+
+@decorador_retry
+def _ejecutar_api_append(range_name_append, body):
+    """Inserta datos con reintentos."""
+    return service.spreadsheets().values().append(
+        spreadsheetId=SPREADSHEET_ID,
+        range=range_name_append,
+        valueInputOption='USER_ENTERED',
+        body=body
+    ).execute()
+# --- Fin Retry Logic ---
 # --- Fin Integración Google Sheets ---
 # Configuración de la página
 st.set_page_config(
@@ -228,10 +263,7 @@ def cargar_reservas_desde_sheets():
     """Carga las reservas desde la hoja de cálculo de Google."""
     try:
         range_name = f"'{SHEET_NAME}'!A:L" # Asumiendo columnas A a L (con fecha_reserva)
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=range_name
-        ).execute()
+        result = _ejecutar_api_cargar(range_name)
         values = result.get('values', [])
         if not values:
             print("No se encontraron datos en la hoja de cálculo.")
@@ -328,12 +360,7 @@ def guardar_reserva_en_sheets(reserva):
         # Insertar la fila al final de la hoja
         range_name_write = f"'{SHEET_NAME}'!A{1000000}" # Insertar en una fila muy baja o usar append
         # Opcional: Usar append para añadir al final
-        service.spreadsheets().values().append(
-            spreadsheetId=SPREADSHEET_ID,
-            range=f"'{SHEET_NAME}'", # Nombre de la hoja sin rango específico para append
-            valueInputOption='USER_ENTERED',
-            body={'values': [fila_a_insertar]}
-        ).execute()
+        _ejecutar_api_append(f"'{SHEET_NAME}'", {'values': [fila_a_insertar]})
         print(f"Reserva guardada exitosamente en Google Sheets con ID {reserva['id']}.")
         return reserva['id']
     except Exception as e:
