@@ -1833,6 +1833,7 @@ with view_tab3:
     # VISTA 3: CALENDARIO VISUAL INTERACTIVO
     # =====================================================
     # --- CALENDARIO VISUAL COMENTADO PARA DIAGNOSTICAR PROBLEMA DE RENDIMIENTO ---
+    st.info("El calendario visual ha sido temporalmente desactivado para mejorar el rendimiento.")
     # st.subheader("📆 Calendario Visual")
 
     # with st.expander("Ver Calendario", expanded=True):
