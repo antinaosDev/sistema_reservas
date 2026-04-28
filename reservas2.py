@@ -368,9 +368,6 @@ def cargar_reservas_desde_sheets():
                     reserva_dict["num_asistentes"] = (
                         0  # Valor por defecto si no es un número
                     )
-                    print(
-                        f"Advertencia: 'num_asistentes' no es un número en la fila {i}, usando 0. Valor: {row}"
-                    )
 
                 # El ID es string, no lo convertimos a int
                 # Validar que la fecha tenga un formato correcto
@@ -379,9 +376,6 @@ def cargar_reservas_desde_sheets():
                     try:
                         datetime.strptime(fecha_str, "%Y-%m-%d")
                     except ValueError:
-                        print(
-                            f"Advertencia: Formato de fecha inválido en la fila {i}: {fecha_str}, saltando fila."
-                        )
                         continue  # Saltar esta fila si la fecha es inválida
                 # Añadir duracion_horas como campo temporal con valor por defecto para la lógica
                 reserva_dict["duracion_horas"] = (
@@ -393,9 +387,7 @@ def cargar_reservas_desde_sheets():
                     reserva_dict["fecha_reserva"] = "1900-01-01 00:00:00"
                 reservas.append(reserva_dict)
             else:
-                print(
-                    f"Fila {i} con datos insuficientes (menos de {len(headers)} columnas): {row}, saltando fila."
-                )
+                pass  # Silenciar warning de filas con datos insuficientes
         return reservas
     except Exception as e:
         print(f"Error al cargar reservas desde Google Sheets: {e}")
