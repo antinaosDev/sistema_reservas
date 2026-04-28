@@ -1869,6 +1869,14 @@ with view_tab3:
                         "end": f"{reserva['fecha']}T{reserva['hora_fin']}",
                         "backgroundColor": obtener_color_prioridad(reserva["criterio"]),
                         "borderColor": obtener_color_prioridad(reserva["criterio"]),
+                        "extendedProps": {
+                            "nombre": reserva["nombre"],
+                            "email": reserva["email"],
+                            "criterio": reserva["criterio"],
+                            "asistentes": reserva["num_asistentes"],
+                            "proposito": reserva["proposito"],
+                            "id": reserva["id"],
+                        },
                     }
                 )
 
@@ -1882,12 +1890,38 @@ with view_tab3:
                 "editable": False,
                 "height": "600px",
                 "locale": "es",
+                "eventClick": "alert",
             }
 
             calendar_value = calendar(
                 events=eventos,
                 options=calendar_options,
             )
+
+            if calendar_value and calendar_value.get("events"):
+                selected_event = calendar_value["events"][0]
+                with st.expander("📋 Detalles de la Reserva"):
+                    col_d1, col_d2 = st.columns(2)
+                    with col_d1:
+                        st.markdown(
+                            f"**👤 Nombre:** {selected_event.get('extendedProps', {}).get('nombre', 'N/A')}"
+                        )
+                        st.markdown(
+                            f"**📧 Email:** {selected_event.get('extendedProps', {}).get('email', 'N/A')}"
+                        )
+                        st.markdown(
+                            f"**🆔 ID:** {selected_event.get('extendedProps', {}).get('id', 'N/A')}"
+                        )
+                    with col_d2:
+                        st.markdown(
+                            f"**🎯 Criterio:** {selected_event.get('extendedProps', {}).get('criterio', 'N/A')}"
+                        )
+                        st.markdown(
+                            f"**👥 Asistentes:** {selected_event.get('extendedProps', {}).get('asistentes', 'N/A')}"
+                        )
+                    st.markdown(
+                        f"**📝 Propósito:** {selected_event.get('extendedProps', {}).get('proposito', 'N/A')}"
+                    )
 
             st.markdown("""
             **Leyenda de colores:**
