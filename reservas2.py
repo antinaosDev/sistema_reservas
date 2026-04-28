@@ -1893,7 +1893,6 @@ with view_tab3:
                 calendar_value = calendar(
                     events=eventos,
                     options=calendar_options,
-                    key=f"calendar_view_{id(st.session_state)}",
                 )
 
                 # Leyenda de colores
