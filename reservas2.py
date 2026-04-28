@@ -1567,7 +1567,9 @@ with tab3:
             "Hasta", value=obtener_hora_local().date() + timedelta(days=30)
         )  # <-- Cambiado a hora local
     # --- NUEVO: Pestañas para Lista, Vista Tipo Calendario y Calendario Visual ---
-    view_tab1, view_tab2, view_tab3 = st.tabs(["📋 Lista de Reservas", "📅 Vista Tipo Calendario", "📆 Calendario Visual"])
+    view_tab1, view_tab2, view_tab3 = st.tabs(
+        ["📋 Lista de Reservas", "📅 Vista Tipo Calendario", "📆 Calendario Visual"]
+    )
     with view_tab1:  # Contenido original de la lista
         # Obtener reservas futuras basadas en los filtros
         reservas_futuras = []
@@ -1825,10 +1827,12 @@ with tab3:
 
             st.dataframe(df_display_cal, use_container_width=True, hide_index=True)
 
-else:
+        else:
             # Obtener el nombre del mes en español para el mensaje
             nombre_mes = nombres_meses_es[mes_seleccionado - 1]
-            st.info(f"ℹ️ No se encontraron reservas para {nombre_mes} de {anio_seleccionado} con los criterios seleccionados.")
+            st.info(
+                f"ℹ️ No se encontraron reservas para {nombre_mes} de {anio_seleccionado} con los criterios seleccionados."
+            )
 
 # --- Fin Mostrar Calendario de Calor ---
 
@@ -1837,7 +1841,7 @@ with view_tab3:
     # VISTA 3: CALENDARIO VISUAL INTERACTIVO
     # =====================================================
     st.markdown("### 📆 Calendario Visual")
-    
+
     with st.expander("Ver Calendario", expanded=True):
         # Filtrar reservas para el calendario usando los mismos filtros
         reservas_calendario = []
@@ -1852,42 +1856,44 @@ with view_tab3:
                     continue
                 reservas_calendario.append(reserva)
             except ValueError:
-                    continue
-            
+                continue
+
             if reservas_calendario:
                 df_calendario = pd.DataFrame(reservas_calendario)
-                
+
                 # Convertir reservas a eventos para el calendario
                 eventos = []
                 for _, reserva in df_calendario.iterrows():
-                    eventos.append({
-                        "title": f"{reserva['nombre']} ({reserva['hora_inicio']} - {reserva['hora_fin']})",
-                        "start": f"{reserva['fecha']}T{reserva['hora_inicio']}",
-                        "end": f"{reserva['fecha']}T{reserva['hora_fin']}",
-                        "backgroundColor": obtener_color_prioridad(reserva['criterio']),
-                        "borderColor": obtener_color_prioridad(reserva['criterio']),
-                    })
-                
+                    eventos.append(
+                        {
+                            "title": f"{reserva['nombre']} ({reserva['hora_inicio']} - {reserva['hora_fin']})",
+                            "start": f"{reserva['fecha']}T{reserva['hora_inicio']}",
+                            "end": f"{reserva['fecha']}T{reserva['hora_fin']}",
+                            "backgroundColor": obtener_color_prioridad(
+                                reserva["criterio"]
+                            ),
+                            "borderColor": obtener_color_prioridad(reserva["criterio"]),
+                        }
+                    )
+
                 # Configuración del calendario
                 calendar_options = {
                     "initialView": "dayGridMonth",
                     "headerToolbar": {
                         "left": "prev,next today",
                         "center": "title",
-                        "right": "dayGridMonth,timeGridWeek,listWeek"
+                        "right": "dayGridMonth,timeGridWeek,listWeek",
                     },
                     "editable": False,
                     "height": "600px",
-                    "locale": "es"
+                    "locale": "es",
                 }
-                
+
                 # Mostrar el calendario
                 calendar_value = calendar(
-                    events=eventos,
-                    options=calendar_options,
-                    key="calendar_view"
+                    events=eventos, options=calendar_options, key="calendar_view"
                 )
-                
+
                 # Leyenda de colores
                 st.markdown("""
                 **Leyenda de colores:**
@@ -1897,7 +1903,9 @@ with view_tab3:
                 - 🟢 Reuniones Generales (Baja prioridad)
                 """)
             else:
-                st.info("ℹ️ No hay reservas con los filtros aplicados para mostrar en el calendario.")
+                st.info(
+                    "ℹ️ No hay reservas con los filtros aplicados para mostrar en el calendario."
+                )
 
 # Sidebar con información y carga de logo
 with st.sidebar:
