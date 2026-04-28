@@ -1832,79 +1832,80 @@ with view_tab3:
     # =====================================================
     # VISTA 3: CALENDARIO VISUAL INTERACTIVO
     # =====================================================
-    st.subheader("📆 Calendario Visual")
+    # --- CALENDARIO VISUAL COMENTADO PARA DIAGNOSTICAR PROBLEMA DE RENDIMIENTO ---
+    # st.subheader("📆 Calendario Visual")
 
-    with st.expander("Ver Calendario", expanded=True):
-        try:
-            # Filtrar reservas según los filtros aplicados
-            reservas_filtradas = []
-            for reserva in st.session_state.reservas:
-                if "fecha" not in reserva:
-                    continue
-                try:
-                    fecha_reserva = datetime.strptime(
-                        reserva["fecha"], "%Y-%m-%d"
-                    ).date()
-                    if fecha_reserva < fecha_desde or fecha_reserva > fecha_hasta:
-                        continue
-                    if filtro_criterio and reserva["criterio"] not in filtro_criterio:
-                        continue
-                    reservas_filtradas.append(reserva)
-                except ValueError:
-                    continue
+    # with st.expander("Ver Calendario", expanded=True):
+    #     try:
+    #         # Filtrar reservas según los filtros aplicados
+    #         reservas_filtradas = []
+    #         for reserva in st.session_state.reservas:
+    #             if "fecha" not in reserva:
+    #                 continue
+    #             try:
+    #                 fecha_reserva = datetime.strptime(
+    #                     reserva["fecha"], "%Y-%m-%d"
+    #                 ).date()
+    #                 if fecha_reserva < fecha_desde or fecha_reserva > fecha_hasta:
+    #                     continue
+    #                 if filtro_criterio and reserva["criterio"] not in filtro_criterio:
+    #                     continue
+    #                 reservas_filtradas.append(reserva)
+    #             except ValueError:
+    #                 continue
 
-            # Convertir a DataFrame para iterar
-            df_filtrado = pd.DataFrame(reservas_filtradas)
+    #         # Convertir a DataFrame para iterar
+    #         df_filtrado = pd.DataFrame(reservas_filtradas)
 
-            # Convertir reservas a eventos para el calendario
-            eventos = []
-            for _, reserva in df_filtrado.iterrows():
-                eventos.append(
-                    {
-                        "title": f"{reserva.get('nombre', 'Reserva')} ({reserva.get('hora_inicio', '')} - {reserva.get('hora_fin', '')})",
-                        "start": f"{reserva.get('fecha', '')}T{reserva.get('hora_inicio', '')}",
-                        "end": f"{reserva.get('fecha', '')}T{reserva.get('hora_fin', '')}",
-                        "backgroundColor": obtener_color_prioridad(
-                            reserva.get("criterio", "")
-                        ),
-                        "borderColor": obtener_color_prioridad(
-                            reserva.get("criterio", "")
-                        ),
-                    }
-                )
+    #         # Convertir reservas a eventos para el calendario (USANDO ITERROWS - LENTO!)
+    #         eventos = []
+    #         for _, reserva in df_filtrado.iterrows():
+    #             eventos.append(
+    #                 {
+    #                     "title": f"{reserva.get('nombre', 'Reserva')} ({reserva.get('hora_inicio', '')} - {reserva.get('hora_fin', '')})",
+    #                     "start": f"{reserva.get('fecha', '')}T{reserva.get('hora_inicio', '')}",
+    #                     "end": f"{reserva.get('fecha', '')}T{reserva.get('hora_fin', '')}",
+    #                     "backgroundColor": obtener_color_prioridad(
+    #                         reserva.get("criterio", "")
+    #                     ),
+    #                     "borderColor": obtener_color_prioridad(
+    #                         reserva.get("criterio", "")
+    #                     ),
+    #                 }
+    #             )
 
-            if eventos:
-                # Configuración del calendario
-                calendar_options = {
-                    "initialView": "dayGridMonth",
-                    "headerToolbar": {
-                        "left": "prev,next today",
-                        "center": "title",
-                        "right": "dayGridMonth,timeGridWeek,listWeek",
-                    },
-                    "height": "600px",
-                    "locale": "es",
-                }
+    #         if eventos:
+    #             # Configuración del calendario
+    #             calendar_options = {
+    #                 "initialView": "dayGridMonth",
+    #                 "headerToolbar": {
+    #                     "left": "prev,next today",
+    #                     "center": "title",
+    #                     "right": "dayGridMonth,timeGridWeek,listWeek",
+    #                 },
+    #                 "height": "600px",
+    #                 "locale": "es",
+    #             }
 
-                # Mostrar el calendario
-                calendar_component = calendar(
-                    events=eventos,
-                    options=calendar_options,
-                )
-            else:
-                st.info("No hay reservas para mostrar en el calendario")
+    #             # Mostrar el calendario
+    #             calendar_component = calendar(
+    #                 events=eventos,
+    #                 options=calendar_options,
+    #             )
+    #         else:
+    #             st.info("No hay reservas para mostrar en el calendario")
 
-        except Exception as e:
-            st.error(f"Error al mostrar calendario: {str(e)}")
+    #     except Exception as e:
+    #         st.error(f"Error al mostrar calendario: {str(e)}")
 
-        # Leyenda de colores (fuera del try)
-        st.markdown("""
-        **Leyenda de colores:**
-        - 🔴 Supervisión de Referentes (Máxima prioridad)
-        - 🟠 Reuniones con la Comunidad (Alta prioridad)
-        - 🟡 Reuniones de Equipos (Media prioridad)
-        - 🟢 Reuniones Generales (Baja prioridad)
-        """)
+    #     # Leyenda de colores (fuera del try)
+    #     st.markdown("""
+    #     **Leyenda de colores:**
+    #     - 🔴 Supervisión de Referentes (Máxima prioridad)
+    #     - 🟠 Reuniones con la Comunidad (Alta prioridad)
+    #     - 🟡 Reuniones de Equipos (Media prioridad)
+    #     - 🟢 Reuniones Generales (Baja prioridad)
+    #     """)
 
 # Sidebar con información y carga de logo
 with st.sidebar:
