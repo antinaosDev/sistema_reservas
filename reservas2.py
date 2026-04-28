@@ -7,6 +7,7 @@ from plotly.subplots import make_subplots
 import json  # Añadido para manejar el archivo JSON de credenciales
 from PIL import Image
 import pytz  # <-- Importación añadida para manejo de zonas horarias
+from fpdf import FPDF # <-- Importación añadida para exportar a PDF
 from streamlit_calendar import calendar
 import json  # Añadido para manejar el archivo JSON de credenciales
 
@@ -53,6 +54,83 @@ def calcular_dias_habiles(fecha_inicio, fecha_fin):
         fecha_actual += timedelta(days=1)
     return dias_habiles
 
+
+def limpiar_texto_pdf(texto):
+    if not isinstance(texto, str):
+        texto = str(texto)
+    # Reemplazar caracteres no soportados por fpdf (latin-1)
+    return texto.encode('latin-1', 'replace').decode('latin-1')
+
+def generar_pdf_reservas(reservas, fecha_desde, fecha_hasta):
+    class PDF(FPDF):
+        def header(self):
+            self.set_font("helvetica", "B", 15)
+            self.cell(0, 10, "Reporte de Reservas de Salas", align="C", new_x="LMARGIN", new_y="NEXT")
+            self.set_font("helvetica", "", 10)
+            self.cell(0, 10, f"Periodo: {fecha_desde.strftime('%d/%m/%Y')} - {fecha_hasta.strftime('%d/%m/%Y')}", align="C", new_x="LMARGIN", new_y="NEXT")
+            self.ln(5)
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font("helvetica", "I", 8)
+            self.cell(0, 10, f"Pagina {self.page_no()}/{{nb}}", align="C")
+
+    pdf = PDF()
+    pdf.add_page()
+    
+    # 1. FORMATO CALENDARIO (Agrupado por Día)
+    pdf.set_font("helvetica", "B", 12)
+    pdf.cell(0, 10, "1. Formato Calendario (Agrupado por Dia)", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+    
+    # Agrupar reservas por fecha
+    reservas_por_fecha = {}
+    for r in reservas:
+        f = r.get("fecha", "")
+        if f not in reservas_por_fecha:
+            reservas_por_fecha[f] = []
+        reservas_por_fecha[f].append(r)
+        
+    for fecha in sorted(reservas_por_fecha.keys()):
+        pdf.set_font("helvetica", "B", 10)
+        pdf.set_fill_color(200, 220, 255)
+        pdf.cell(0, 8, f" Calendario del Dia: {fecha}", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+        
+        pdf.set_font("helvetica", "", 9)
+        for r in sorted(reservas_por_fecha[fecha], key=lambda x: x.get("hora_inicio", "")):
+            horario = f"{r.get('hora_inicio', '')} - {r.get('hora_fin', '')}"
+            texto = f"  - {horario}: {r.get('nombre', '')} ({r.get('num_asistentes', '')} personas) | Proposito: {r.get('proposito', '')}"
+            pdf.multi_cell(0, 6, limpiar_texto_pdf(texto), border="LR")
+        pdf.cell(0, 0, "", border="T", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+    pdf.add_page()
+
+    # 2. FORMATO TABLA
+    pdf.set_font("helvetica", "B", 12)
+    pdf.cell(0, 10, "2. Formato Tabla (Listado de Reservas)", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("helvetica", "B", 8)
+    
+    col_widths = [20, 15, 15, 40, 70, 25]
+    headers = ["Fecha", "Inicio", "Fin", "Solicitante", "Proposito", "Asistentes"]
+    for i, header in enumerate(headers):
+        pdf.cell(col_widths[i], 8, header, border=1)
+    pdf.ln()
+    
+    pdf.set_font("helvetica", "", 8)
+    for r in reservas:
+        proposito = r.get("proposito", "")[:45]
+        nombre = r.get("nombre", "")[:20]
+        
+        pdf.cell(col_widths[0], 8, limpiar_texto_pdf(r.get("fecha", "")), border=1)
+        pdf.cell(col_widths[1], 8, limpiar_texto_pdf(r.get("hora_inicio", "")), border=1)
+        pdf.cell(col_widths[2], 8, limpiar_texto_pdf(r.get("hora_fin", "")), border=1)
+        pdf.cell(col_widths[3], 8, limpiar_texto_pdf(nombre), border=1)
+        pdf.cell(col_widths[4], 8, limpiar_texto_pdf(proposito), border=1)
+        pdf.cell(col_widths[5], 8, limpiar_texto_pdf(str(r.get("num_asistentes", ""))), border=1)
+        pdf.ln()
+
+    return bytes(pdf.output())
 
 # --- Fin Funciones de Utilidad ---
 @st.cache_resource
@@ -1720,6 +1798,17 @@ with tab3:
                 calendar_component = calendar(
                     events=eventos,
                     options=calendar_options,
+                )
+
+                # Exportar Calendario a PDF
+                st.markdown("<br>", unsafe_allow_html=True)
+                pdf_bytes = generar_pdf_reservas(reservas_filtradas, fecha_desde, fecha_hasta)
+                st.download_button(
+                    label="📥 Exportar Calendario y Tabla en PDF",
+                    data=pdf_bytes,
+                    file_name=f"calendario_reservas_{obtener_hora_local().strftime('%Y%m%d')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
                 )
             else:
                 st.info("No hay reservas para mostrar en el calendario")
