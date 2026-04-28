@@ -1840,55 +1840,49 @@ with view_tab3:
     # =====================================================
     # VISTA 3: CALENDARIO VISUAL INTERACTIVO
     # =====================================================
-    st.markdown("### 📆 Calendario Visual")
+    st.subheader("📆 Calendario Visual")
 
     with st.expander("Ver Calendario", expanded=True):
-        reservas_calendario = []
-        for reserva in st.session_state.reservas:
-            if "fecha" not in reserva:
-                continue
-            try:
-                fecha_reserva = datetime.strptime(reserva["fecha"], "%Y-%m-%d").date()
-                if fecha_reserva < fecha_desde or fecha_reserva > fecha_hasta:
+        try:
+            # Filtrar reservas según los filtros aplicados
+            reservas_filtradas = []
+            for reserva in st.session_state.reservas:
+                if "fecha" not in reserva:
                     continue
-                if filtro_criterio and reserva["criterio"] not in filtro_criterio:
-                    continue
-                reservas_calendario.append(reserva)
-            except ValueError:
-                continue
-
-        if reservas_calendario:
-            df_calendario = pd.DataFrame(reservas_calendario)
-
-            eventos = []
-            for _, reserva in df_calendario.iterrows():
                 try:
-                    evento = {
-                        "title": f"{reserva.get('nombre', 'Sin nombre')} ({reserva.get('hora_inicio', '')} - {reserva.get('hora_fin', '')})",
-                        "start": f"{reserva['fecha']}T{reserva.get('hora_inicio', '00:00')}",
-                        "end": f"{reserva['fecha']}T{reserva.get('hora_fin', '00:00')}",
+                    fecha_reserva = datetime.strptime(
+                        reserva["fecha"], "%Y-%m-%d"
+                    ).date()
+                    if fecha_reserva < fecha_desde or fecha_reserva > fecha_hasta:
+                        continue
+                    if filtro_criterio and reserva["criterio"] not in filtro_criterio:
+                        continue
+                    reservas_filtradas.append(reserva)
+                except ValueError:
+                    continue
+
+            # Convertir a DataFrame para iterar
+            df_filtrado = pd.DataFrame(reservas_filtradas)
+
+            # Convertir reservas a eventos para el calendario
+            eventos = []
+            for _, reserva in df_filtrado.iterrows():
+                eventos.append(
+                    {
+                        "title": f"{reserva.get('nombre', 'Reserva')} ({reserva.get('hora_inicio', '')} - {reserva.get('hora_fin', '')})",
+                        "start": f"{reserva.get('fecha', '')}T{reserva.get('hora_inicio', '')}",
+                        "end": f"{reserva.get('fecha', '')}T{reserva.get('hora_fin', '')}",
                         "backgroundColor": obtener_color_prioridad(
-                            reserva.get("criterio", "4 - Reuniones Generales")
+                            reserva.get("criterio", "")
                         ),
                         "borderColor": obtener_color_prioridad(
-                            reserva.get("criterio", "4 - Reuniones Generales")
+                            reserva.get("criterio", "")
                         ),
-                        "extendedProps": {
-                            "nombre": reserva.get("nombre", "N/A"),
-                            "email": reserva.get("email", "N/A"),
-                            "criterio": reserva.get("criterio", "N/A"),
-                            "asistentes": reserva.get("num_asistentes", 0),
-                            "proposito": reserva.get("proposito", "N/A"),
-                            "id": reserva.get("id", "N/A"),
-                        },
                     }
-                    eventos.append(evento)
-                except Exception as e:
-                    print(f"Error al crear evento: {e}")
-                    continue
+                )
 
-            # Solo mostrar calendario si hay eventos
             if eventos:
+                # Configuración del calendario
                 calendar_options = {
                     "initialView": "dayGridMonth",
                     "headerToolbar": {
@@ -1896,67 +1890,29 @@ with view_tab3:
                         "center": "title",
                         "right": "dayGridMonth,timeGridWeek,listWeek",
                     },
-                    "editable": False,
                     "height": "600px",
                     "locale": "es",
-                    # "eventClick": "alert",  # Deshabilitado por problemas
                 }
 
-                calendar_value = calendar(
+                # Mostrar el calendario
+                calendar_component = calendar(
                     events=eventos,
                     options=calendar_options,
                 )
+            else:
+                st.info("No hay reservas para mostrar en el calendario")
 
-                # Manejo robusto de eventos click
-                try:
-                    if (
-                        calendar_value
-                        and isinstance(calendar_value, dict)
-                        and calendar_value.get("events")
-                    ):
-                        events_list = calendar_value["events"]
-                        if events_list and len(events_list) > 0:
-                            selected_event = events_list[0]
-                            with st.expander("📋 Detalles de la Reserva"):
-                                col_d1, col_d2 = st.columns(2)
-                                props = (
-                                    selected_event.get("extendedProps", {})
-                                    if isinstance(selected_event, dict)
-                                    else {}
-                                )
-                                with col_d1:
-                                    st.markdown(
-                                        f"**👤 Nombre:** {props.get('nombre', 'N/A')}"
-                                    )
-                                    st.markdown(
-                                        f"**📧 Email:** {props.get('email', 'N/A')}"
-                                    )
-                                    st.markdown(f"**🆔 ID:** {props.get('id', 'N/A')}")
-                                with col_d2:
-                                    st.markdown(
-                                        f"**🎯 Criterio:** {props.get('criterio', 'N/A')}"
-                                    )
-                                    st.markdown(
-                                        f"**👥 Asistentes:** {props.get('asistentes', 'N/A')}"
-                                    )
-                                st.markdown(
-                                    f"**📝 Propósito:** {props.get('proposito', 'N/A')}"
-                                )
-                except Exception as e:
-                    print(f"Error al manejar evento click: {e}")
-                # Silencioso - no mostrar error al usuario
+        except Exception as e:
+            st.error(f"Error al mostrar calendario: {str(e)}")
 
-            st.markdown("""
-            **Leyenda de colores:**
-            - 🔴 Supervisión de Referentes (Máxima prioridad)
-            - 🟠 Reuniones con la Comunidad (Alta prioridad)
-            - 🟡 Reuniones de Equipos (Media prioridad)
-            - 🟢 Reuniones Generales (Baja prioridad)
-            """)
-        else:
-            st.info(
-                "ℹ️ No hay reservas con los filtros aplicados para mostrar en el calendario."
-            )
+        # Leyenda de colores (fuera del try)
+        st.markdown("""
+        **Leyenda de colores:**
+        - 🔴 Supervisión de Referentes (Máxima prioridad)
+        - 🟠 Reuniones con la Comunidad (Alta prioridad)
+        - 🟡 Reuniones de Equipos (Media prioridad)
+        - 🟢 Reuniones Generales (Baja prioridad)
+        """)
 
 # Sidebar con información y carga de logo
 with st.sidebar:
