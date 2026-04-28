@@ -1843,7 +1843,6 @@ with view_tab3:
     st.markdown("### 📆 Calendario Visual")
 
     with st.expander("Ver Calendario", expanded=True):
-        # Filtrar reservas para el calendario usando los mismos filtros
         reservas_calendario = []
         for reserva in st.session_state.reservas:
             if "fecha" not in reserva:
@@ -1858,55 +1857,49 @@ with view_tab3:
             except ValueError:
                 continue
 
-            if reservas_calendario:
-                df_calendario = pd.DataFrame(reservas_calendario)
+        if reservas_calendario:
+            df_calendario = pd.DataFrame(reservas_calendario)
 
-                # Convertir reservas a eventos para el calendario
-                eventos = []
-                for _, reserva in df_calendario.iterrows():
-                    eventos.append(
-                        {
-                            "title": f"{reserva['nombre']} ({reserva['hora_inicio']} - {reserva['hora_fin']})",
-                            "start": f"{reserva['fecha']}T{reserva['hora_inicio']}",
-                            "end": f"{reserva['fecha']}T{reserva['hora_fin']}",
-                            "backgroundColor": obtener_color_prioridad(
-                                reserva["criterio"]
-                            ),
-                            "borderColor": obtener_color_prioridad(reserva["criterio"]),
-                        }
-                    )
-
-                # Configuración del calendario
-                calendar_options = {
-                    "initialView": "dayGridMonth",
-                    "headerToolbar": {
-                        "left": "prev,next today",
-                        "center": "title",
-                        "right": "dayGridMonth,timeGridWeek,listWeek",
-                    },
-                    "editable": False,
-                    "height": "600px",
-                    "locale": "es",
-                }
-
-                # Mostrar el calendario
-                calendar_value = calendar(
-                    events=eventos,
-                    options=calendar_options,
+            eventos = []
+            for _, reserva in df_calendario.iterrows():
+                eventos.append(
+                    {
+                        "title": f"{reserva['nombre']} ({reserva['hora_inicio']} - {reserva['hora_fin']})",
+                        "start": f"{reserva['fecha']}T{reserva['hora_inicio']}",
+                        "end": f"{reserva['fecha']}T{reserva['hora_fin']}",
+                        "backgroundColor": obtener_color_prioridad(reserva["criterio"]),
+                        "borderColor": obtener_color_prioridad(reserva["criterio"]),
+                    }
                 )
 
-                # Leyenda de colores
-                st.markdown("""
-                **Leyenda de colores:**
-                - 🔴 Supervisión de Referentes (Máxima prioridad)
-                - 🟠 Reuniones con la Comunidad (Alta prioridad)
-                - 🟡 Reuniones de Equipos (Media prioridad)
-                - 🟢 Reuniones Generales (Baja prioridad)
-                """)
-            else:
-                st.info(
-                    "ℹ️ No hay reservas con los filtros aplicados para mostrar en el calendario."
-                )
+            calendar_options = {
+                "initialView": "dayGridMonth",
+                "headerToolbar": {
+                    "left": "prev,next today",
+                    "center": "title",
+                    "right": "dayGridMonth,timeGridWeek,listWeek",
+                },
+                "editable": False,
+                "height": "600px",
+                "locale": "es",
+            }
+
+            calendar_value = calendar(
+                events=eventos,
+                options=calendar_options,
+            )
+
+            st.markdown("""
+            **Leyenda de colores:**
+            - 🔴 Supervisión de Referentes (Máxima prioridad)
+            - 🟠 Reuniones con la Comunidad (Alta prioridad)
+            - 🟡 Reuniones de Equipos (Media prioridad)
+            - 🟢 Reuniones Generales (Baja prioridad)
+            """)
+        else:
+            st.info(
+                "ℹ️ No hay reservas con los filtros aplicados para mostrar en el calendario."
+            )
 
 # Sidebar con información y carga de logo
 with st.sidebar:
