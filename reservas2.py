@@ -1862,66 +1862,89 @@ with view_tab3:
 
             eventos = []
             for _, reserva in df_calendario.iterrows():
-                eventos.append(
-                    {
-                        "title": f"{reserva['nombre']} ({reserva['hora_inicio']} - {reserva['hora_fin']})",
-                        "start": f"{reserva['fecha']}T{reserva['hora_inicio']}",
-                        "end": f"{reserva['fecha']}T{reserva['hora_fin']}",
-                        "backgroundColor": obtener_color_prioridad(reserva["criterio"]),
-                        "borderColor": obtener_color_prioridad(reserva["criterio"]),
+                try:
+                    evento = {
+                        "title": f"{reserva.get('nombre', 'Sin nombre')} ({reserva.get('hora_inicio', '')} - {reserva.get('hora_fin', '')})",
+                        "start": f"{reserva['fecha']}T{reserva.get('hora_inicio', '00:00')}",
+                        "end": f"{reserva['fecha']}T{reserva.get('hora_fin', '00:00')}",
+                        "backgroundColor": obtener_color_prioridad(
+                            reserva.get("criterio", "4 - Reuniones Generales")
+                        ),
+                        "borderColor": obtener_color_prioridad(
+                            reserva.get("criterio", "4 - Reuniones Generales")
+                        ),
                         "extendedProps": {
-                            "nombre": reserva["nombre"],
-                            "email": reserva["email"],
-                            "criterio": reserva["criterio"],
-                            "asistentes": reserva["num_asistentes"],
-                            "proposito": reserva["proposito"],
-                            "id": reserva["id"],
+                            "nombre": reserva.get("nombre", "N/A"),
+                            "email": reserva.get("email", "N/A"),
+                            "criterio": reserva.get("criterio", "N/A"),
+                            "asistentes": reserva.get("num_asistentes", 0),
+                            "proposito": reserva.get("proposito", "N/A"),
+                            "id": reserva.get("id", "N/A"),
                         },
                     }
+                    eventos.append(evento)
+                except Exception as e:
+                    print(f"Error al crear evento: {e}")
+                    continue
+
+            # Solo mostrar calendario si hay eventos
+            if eventos:
+                calendar_options = {
+                    "initialView": "dayGridMonth",
+                    "headerToolbar": {
+                        "left": "prev,next today",
+                        "center": "title",
+                        "right": "dayGridMonth,timeGridWeek,listWeek",
+                    },
+                    "editable": False,
+                    "height": "600px",
+                    "locale": "es",
+                    # "eventClick": "alert",  # Deshabilitado por problemas
+                }
+
+                calendar_value = calendar(
+                    events=eventos,
+                    options=calendar_options,
                 )
 
-            calendar_options = {
-                "initialView": "dayGridMonth",
-                "headerToolbar": {
-                    "left": "prev,next today",
-                    "center": "title",
-                    "right": "dayGridMonth,timeGridWeek,listWeek",
-                },
-                "editable": False,
-                "height": "600px",
-                "locale": "es",
-                "eventClick": "alert",
-            }
-
-            calendar_value = calendar(
-                events=eventos,
-                options=calendar_options,
-            )
-
-            if calendar_value and calendar_value.get("events"):
-                selected_event = calendar_value["events"][0]
-                with st.expander("📋 Detalles de la Reserva"):
-                    col_d1, col_d2 = st.columns(2)
-                    with col_d1:
-                        st.markdown(
-                            f"**👤 Nombre:** {selected_event.get('extendedProps', {}).get('nombre', 'N/A')}"
-                        )
-                        st.markdown(
-                            f"**📧 Email:** {selected_event.get('extendedProps', {}).get('email', 'N/A')}"
-                        )
-                        st.markdown(
-                            f"**🆔 ID:** {selected_event.get('extendedProps', {}).get('id', 'N/A')}"
-                        )
-                    with col_d2:
-                        st.markdown(
-                            f"**🎯 Criterio:** {selected_event.get('extendedProps', {}).get('criterio', 'N/A')}"
-                        )
-                        st.markdown(
-                            f"**👥 Asistentes:** {selected_event.get('extendedProps', {}).get('asistentes', 'N/A')}"
-                        )
-                    st.markdown(
-                        f"**📝 Propósito:** {selected_event.get('extendedProps', {}).get('proposito', 'N/A')}"
-                    )
+                # Manejo robusto de eventos click
+                try:
+                    if (
+                        calendar_value
+                        and isinstance(calendar_value, dict)
+                        and calendar_value.get("events")
+                    ):
+                        events_list = calendar_value["events"]
+                        if events_list and len(events_list) > 0:
+                            selected_event = events_list[0]
+                            with st.expander("📋 Detalles de la Reserva"):
+                                col_d1, col_d2 = st.columns(2)
+                                props = (
+                                    selected_event.get("extendedProps", {})
+                                    if isinstance(selected_event, dict)
+                                    else {}
+                                )
+                                with col_d1:
+                                    st.markdown(
+                                        f"**👤 Nombre:** {props.get('nombre', 'N/A')}"
+                                    )
+                                    st.markdown(
+                                        f"**📧 Email:** {props.get('email', 'N/A')}"
+                                    )
+                                    st.markdown(f"**🆔 ID:** {props.get('id', 'N/A')}")
+                                with col_d2:
+                                    st.markdown(
+                                        f"**🎯 Criterio:** {props.get('criterio', 'N/A')}"
+                                    )
+                                    st.markdown(
+                                        f"**👥 Asistentes:** {props.get('asistentes', 'N/A')}"
+                                    )
+                                st.markdown(
+                                    f"**📝 Propósito:** {props.get('proposito', 'N/A')}"
+                                )
+                except Exception as e:
+                    print(f"Error al manejar evento click: {e}")
+                # Silencioso - no mostrar error al usuario
 
             st.markdown("""
             **Leyenda de colores:**
