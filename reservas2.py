@@ -1558,9 +1558,9 @@ with tab3:
         fecha_hasta = st.date_input(
             "Hasta", value=obtener_hora_local().date() + timedelta(days=30)
         )  # <-- Cambiado a hora local
-    # --- NUEVO: Pestañas para Lista, Vista Tipo Calendario y Calendario Visual ---
-    view_tab1, view_tab2, view_tab3 = st.tabs(
-        ["📋 Lista de Reservas", "📅 Vista Tipo Calendario", "📆 Calendario Visual"]
+    # --- Pestañas para Lista y Calendario ---
+    view_tab1, view_tab2 = st.tabs(
+        ["📋 Lista de Reservas", "📆 Calendario"]
     )
     with view_tab1:  # Contenido original de la lista
         # Obtener reservas futuras basadas en los filtros
@@ -1663,177 +1663,12 @@ with tab3:
             """,
                 unsafe_allow_html=True,
             )
-    with view_tab2:  # Nueva pestaña para una Vista tipo Calendario alternativa
-        st.markdown("### 📅 Vista Tipo Calendario")
-
-        # --- Selector de Mes para el Calendario de Calor ---
-        # Definir nombres de meses en español
-        nombres_meses_es = [
-            "Enero",
-            "Febrero",
-            "Marzo",
-            "Abril",
-            "Mayo",
-            "Junio",
-            "Julio",
-            "Agosto",
-            "Septiembre",
-            "Octubre",
-            "Noviembre",
-            "Diciembre",
-        ]
-
-        # Usamos la hora local para determinar el mes/ año por defecto
-        hoy_local = obtener_hora_local().date()
-
-        # Selector para elegir el mes y año a visualizar
-        col_mes, col_anio, _ = st.columns([2, 2, 4])  # Dar espacio extra al final
-        with col_mes:
-            # Usar índice para seleccionar el mes por defecto (1-12 -> 0-11)
-            mes_seleccionado = st.selectbox(
-                "Seleccionar Mes",
-                options=list(range(1, 13)),  # Valores 1 a 12
-                format_func=lambda x: nombres_meses_es[
-                    x - 1
-                ],  # Mapear 1->Enero, ..., 12->Diciembre
-                index=hoy_local.month
-                - 1,  # Por defecto, el mes actual (ajustar índice 0-based)
-                key="cal_selector_mes",
-            )
-        with col_anio:
-            anio_seleccionado = st.number_input(
-                "Seleccionar Año",
-                min_value=2020,
-                max_value=2030,
-                value=hoy_local.year,  # Por defecto, el año actual
-                step=1,
-                key="cal_selector_anio",
-            )
-        # --- Fin Selector de Mes ---
-
-        # --- Generar Datos para el Calendario de Calor del Mes Seleccionado ---
-        # 1. Filtrar reservas por el mes y año seleccionados
-        reservas_mes_seleccionado = []
-        for r in st.session_state.reservas:
-            if "fecha" in r and r["fecha"]:
-                try:
-                    fecha_reserva = datetime.strptime(r["fecha"], "%Y-%m-%d").date()
-                    # Aplicar filtro de mes y año seleccionados
-                    if (
-                        fecha_reserva.year == anio_seleccionado
-                        and fecha_reserva.month == mes_seleccionado
-                    ):
-                        # Aplicar también el filtro de criterio global de la pestaña
-                        if not filtro_criterio or r["criterio"] in filtro_criterio:
-                            reservas_mes_seleccionado.append(r)
-                except ValueError:
-                    continue  # Ignorar fechas inválidas
-
-        # 2. Contar reuniones por día
-        conteo_dias = {}
-        if reservas_mes_seleccionado:
-            for r in reservas_mes_seleccionado:
-                fecha_str = r["fecha"]
-                conteo_dias[fecha_str] = conteo_dias.get(fecha_str, 0) + 1
-
-        # --- Fin Generación de Datos ---
-
-        # --- Mostrar Calendario de Calor Mensual ---
-        if conteo_dias:
-            # Crear una lista de tuplas (fecha_str, count) y ordenarla por fecha
-            datos_ordenados = sorted(conteo_dias.items())
-            fechas_plot = [item[0] for item in datos_ordenados]
-            conteos_plot = [item[1] for item in datos_ordenados]
-
-            # Crear el gráfico de barras con Plotly
-            fig_calendario = go.Figure(
-                data=go.Bar(
-                    x=fechas_plot,
-                    y=conteos_plot,
-                    marker_color="#667eea",
-                    text=conteos_plot,
-                    textposition="outside",
-                )
-            )
-
-            # Configurar el layout del gráfico
-            # Obtener el nombre del mes en español usando el índice
-            nombre_mes = nombres_meses_es[mes_seleccionado - 1]
-            fig_calendario.update_layout(
-                title=f"Reuniones en {nombre_mes} {anio_seleccionado}",
-                xaxis_title="Fecha",
-                yaxis_title="Número de Reuniones",
-                height=400,
-                margin=dict(l=20, r=20, t=40, b=20),
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Inter, sans-serif"),
-            )
-            # Mostrar el gráfico
-            st.plotly_chart(
-                fig_calendario,
-                use_container_width=True,
-                key=f"calendario_calor_{mes_seleccionado}_{anio_seleccionado}",
-            )
-
-            # Mostrar lista resumida de eventos en ese día si se hace clic (opcional, simplificado)
-            # Aquí simplemente mostramos la lista completa filtrada por mes
-            st.markdown(f"#### 📋 Reuniones en {nombre_mes} {anio_seleccionado}")
-            # Reutilizamos la lógica de la tabla pero solo para el mes seleccionado
-            df_reservas_mes = pd.DataFrame(reservas_mes_seleccionado)
-            # Agregar prioridad numérica para ordenar
-            df_reservas_mes["prioridad_num"] = df_reservas_mes["criterio"].map(
-                obtener_prioridad
-            )
-            df_reservas_mes = df_reservas_mes.sort_values(
-                ["fecha", "prioridad_num", "hora_inicio"]
-            )
-
-            # Columnas a mostrar (quitando duracion_horas si se desea)
-            columnas_mostrar_cal = [
-                "id",
-                "fecha",
-                "hora_inicio",
-                "hora_fin",
-                "nombre",
-                "email",
-                "criterio",
-                "num_asistentes",
-            ]
-            df_display_cal = df_reservas_mes[columnas_mostrar_cal].copy()
-            df_display_cal.columns = [
-                "ID",
-                "Fecha",
-                "Inicio",
-                "Fin",
-                "Nombre",
-                "Email",
-                "Criterio",
-                "Asistentes",
-            ]
-
-            # Formatear fechas
-            df_display_cal["Fecha"] = pd.to_datetime(
-                df_display_cal["Fecha"]
-            ).dt.strftime("%d/%m/%Y")
-
-            st.dataframe(df_display_cal, use_container_width=True, hide_index=True)
-
-        else:
-            # Obtener el nombre del mes en español para el mensaje
-            nombre_mes = nombres_meses_es[mes_seleccionado - 1]
-            st.info(
-                f"ℹ️ No se encontraron reservas para {nombre_mes} de {anio_seleccionado} con los criterios seleccionados."
-            )
-
-# --- Fin Mostrar Calendario de Calor ---
-
-with view_tab3:
-    # =====================================================
-    # VISTA 3: CALENDARIO VISUAL INTERACTIVO
-    # =====================================================
-    # --- CALENDARIO VISUAL OPTIMIZADO ---
-    st.subheader("📆 Calendario Visual")
+    with view_tab2:
+        # =====================================================
+        # VISTA 2: CALENDARIO INTERACTIVO
+        # =====================================================
+        # --- CALENDARIO OPTIMIZADO ---
+        st.subheader("📆 Calendario")
 
     with st.expander("Ver Calendario", expanded=True):
         try:
