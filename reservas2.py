@@ -270,10 +270,10 @@ st.markdown(
         font-size: 0.85rem;
         font-weight: 600;
     }
-    .priority-1 { background: #ef4444; color: white; }
-    .priority-2 { background: #f59e0b; color: white; }
-    .priority-3 { background: #3b82f6; color: white; }
-    .priority-4 { background: #6b7280; color: white; }
+    .priority-1 { background: #EF4444; color: white; }
+    .priority-2 { background: #F59E0B; color: white; }
+    .priority-3 { background: #FACC15; color: #1F2937; }
+    .priority-4 { background: #22C55E; color: white; }
     /* Divider personalizado */
     .custom-divider {
         height: 2px;
@@ -294,14 +294,20 @@ CRITERIO_PRIORIDAD = {
 
 
 def obtener_color_prioridad(criterio):
-    """Retorna el color según el criterio de prioridad."""
+    """Retorna el color según el criterio de prioridad (1, 2, 3 o 4)."""
+    if not criterio or not isinstance(criterio, str):
+        return "#94A3B8"  # Gris por defecto
+    
+    # Extraer el primer carácter (el número de prioridad)
+    prioridad = criterio[0]
+    
     colores = {
-        "1 - Supervisión de Referentes": "#FF6B6B",
-        "2 - Reuniones con la Comunidad": "#FFA94D",
-        "3 - Reuniones de Equipos": "#FFE066",
-        "4 - Reuniones Generales (mínimo 4 personas)": "#69DB7C",
+        "1": "#EF4444",  # Rojo - Supervisión
+        "2": "#F59E0B",  # Naranja - Comunidad
+        "3": "#FACC15",  # Amarillo - Equipos
+        "4": "#22C55E",  # Verde - Generales
     }
-    return colores.get(criterio, "#74C0FC")
+    return colores.get(prioridad, "#94A3B8")
 
 
 HORA_INICIO_DIA = time(8, 0)
@@ -953,7 +959,8 @@ def crear_grafico_prioridades(metricas):
         return fig
     labels = list(metricas["reuniones_por_prioridad"].keys())
     values = list(metricas["reuniones_por_prioridad"].values())
-    colors = ["#ef4444", "#f59e0b", "#3b82f6", "#6b7280"]
+    # Generar colores dinámicamente basados en las etiquetas para mantener consistencia
+    colors = [obtener_color_prioridad(label) for label in labels]
     fig = go.Figure(
         data=[
             go.Pie(
@@ -1667,10 +1674,8 @@ with tab3:
         # =====================================================
         # VISTA 2: CALENDARIO INTERACTIVO
         # =====================================================
-        # --- CALENDARIO OPTIMIZADO ---
-        st.subheader("📆 Calendario")
-
-    with st.expander("Ver Calendario", expanded=True):
+        st.subheader("📆 Calendario de Reservas")
+        
         try:
             # Filtrar reservas según los filtros aplicados
             reservas_filtradas = []
@@ -1689,7 +1694,7 @@ with tab3:
                 except ValueError:
                     continue
 
-            # Convertir reservas a eventos para el calendario directamente (Eficiente)
+            # Convertir reservas a eventos para el calendario
             eventos = []
             for reserva in reservas_filtradas:
                 color = obtener_color_prioridad(reserva.get("criterio", ""))
@@ -1700,6 +1705,7 @@ with tab3:
                         "end": f"{reserva.get('fecha', '')}T{reserva.get('hora_fin', '')}",
                         "backgroundColor": color,
                         "borderColor": color,
+                        "textColor": "#000000" if color == "#FACC15" else "#FFFFFF", # Texto negro para fondo amarillo
                     }
                 )
 
@@ -1712,29 +1718,35 @@ with tab3:
                         "center": "title",
                         "right": "dayGridMonth,timeGridWeek,listWeek",
                     },
-                    "height": "600px",
+                    "height": "650px",
                     "locale": "es",
                 }
 
                 # Mostrar el calendario
-                calendar_component = calendar(
+                calendar(
                     events=eventos,
                     options=calendar_options,
+                    key="calendar_v2"
                 )
             else:
                 st.info("No hay reservas para mostrar en el calendario")
 
+            # Leyenda de colores profesional
+            st.markdown("---")
+            st.markdown("### 🎨 Leyenda de Prioridades")
+            l_col1, l_col2, l_col3, l_col4 = st.columns(4)
+            
+            with l_col1:
+                st.markdown('<div style="background:#EF4444; color:white; padding:10px; border-radius:5px; text-align:center; font-weight:bold;">🔴 Supervisión</div>', unsafe_allow_html=True)
+            with l_col2:
+                st.markdown('<div style="background:#F59E0B; color:white; padding:10px; border-radius:5px; text-align:center; font-weight:bold;">🟠 Comunidad</div>', unsafe_allow_html=True)
+            with l_col3:
+                st.markdown('<div style="background:#FACC15; color:#1F2937; padding:10px; border-radius:5px; text-align:center; font-weight:bold;">🟡 Equipos</div>', unsafe_allow_html=True)
+            with l_col4:
+                st.markdown('<div style="background:#22C55E; color:white; padding:10px; border-radius:5px; text-align:center; font-weight:bold;">🟢 Generales</div>', unsafe_allow_html=True)
+
         except Exception as e:
             st.error(f"Error al mostrar calendario: {str(e)}")
-
-        # Leyenda de colores (fuera del try)
-        st.markdown("""
-        **Leyenda de colores:**
-        - 🔴 Supervisión de Referentes (Máxima prioridad)
-        - 🟠 Reuniones con la Comunidad (Alta prioridad)
-        - 🟡 Reuniones de Equipos (Media prioridad)
-        - 🟢 Reuniones Generales (Baja prioridad)
-        """)
 
 # Sidebar con información y carga de logo
 with st.sidebar:
