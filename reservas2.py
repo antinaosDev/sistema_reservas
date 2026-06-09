@@ -130,6 +130,7 @@ def _ejecutar_api_append(range_name_append, body):
             spreadsheetId=SPREADSHEET_ID,
             range=range_name_append,
             valueInputOption="USER_ENTERED",
+            insertDataOption="INSERT_ROWS",
             body=body,
         )
         .execute()
@@ -425,6 +426,12 @@ def cargar_reservas_desde_sheets():
                 reserva_dict["fecha_reserva"] = "1900-01-01 00:00:00"
                 
             reservas.append(reserva_dict)
+            
+        if reservas:
+            st.session_state["_last_sheet_row_count"] = max([r.get("_row_index", 1) for r in reservas])
+        else:
+            st.session_state["_last_sheet_row_count"] = 1
+            
         return reservas
     except Exception as e:
         print(f"Error al cargar reservas desde Google Sheets: {e}")
