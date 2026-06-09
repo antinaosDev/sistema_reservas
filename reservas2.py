@@ -1625,13 +1625,7 @@ with tab3:
     """,
         unsafe_allow_html=True,
     )
-    # Botón de actualización
-    col_act1, col_act2, col_act3 = st.columns([1, 1, 1])
-    with col_act2:
-        if st.button("🔄 Actualizar Lista", use_container_width=True):
-            # Recargar la lista desde Google Sheets
-            st.session_state.reservas = cargar_reservas()
-            st.success("✅ Lista actualizada correctamente")
+    # Botón de actualización (Eliminado a petición)
     # Filtros
     st.markdown("### 🔍 Filtros")
     col_f1, col_f2, col_f3 = st.columns(3)
