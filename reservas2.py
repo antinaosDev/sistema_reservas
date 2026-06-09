@@ -753,21 +753,16 @@ def procesar_reserva_con_rango_y_prioridad(nueva_reserva, reservas_existentes):
     hora_inicio_rango = nueva_reserva["hora_inicio_rango"]
     hora_fin_rango = nueva_reserva["hora_fin_rango"]
     # --- NUEVA LÓGICA: Determinar duración requerida ---
-    # Asumimos que la duración requerida se basa en el rango preferido o un valor por defecto.
-    # Por ejemplo, si el rango es de 2 horas, se busca un bloque de 2 horas.
+    # Como ya no existe un selector de duración independiente, la duración de la reunión
+    # es exactamente la duración del rango horario preferido seleccionado por el usuario.
     duracion_rango_minutos = time_to_minutes(hora_fin_rango) - time_to_minutes(
         hora_inicio_rango
     )
     duracion_rango_horas = duracion_rango_minutos / 60.0
-    # Limitar la duración requerida a 1, 2 o 3 horas
-    if duracion_rango_horas >= 3:
-        duracion_requerida_horas = 3
-    elif duracion_rango_horas >= 2:
-        duracion_requerida_horas = 2
-    elif duracion_rango_horas >= 1:
-        duracion_requerida_horas = 1
-    else:
-        # Si el rango es menor a 1 hora, usar 1 hora como mínimo
+    
+    duracion_requerida_horas = duracion_rango_horas
+    if duracion_requerida_horas < 1:
+        # Mantener un mínimo de 1 hora por seguridad
         duracion_requerida_horas = 1
     # --- FIN NUEVA LÓGICA ---
     reservas_temporales = [r.copy() for r in reservas_existentes]
