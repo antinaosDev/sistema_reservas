@@ -5,7 +5,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import json  # Añadido para manejar el archivo JSON de credenciales
-from PIL import Image
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import pytz  # <-- Importación añadida para manejo de zonas horarias
 from streamlit_calendar import calendar
 import json  # Añadido para manejar el archivo JSON de credenciales
@@ -1229,13 +1230,13 @@ with tab1:
     with col_g1:
         st.plotly_chart(
             crear_grafico_ocupacion_semanal(st.session_state.reservas),
-            use_container_width=True,
+            width=""stretch"",
             key="grafico_ocupacion_semanal",
         )
     with col_g2:
         st.plotly_chart(
             crear_grafico_prioridades(metricas),
-            use_container_width=True,
+            width=""stretch"",
             key="grafico_prioridades",
         )
     # Segunda fila de gráficos
@@ -1243,7 +1244,7 @@ with tab1:
     with col_g3:
         st.plotly_chart(
             crear_grafico_tendencia_mensual(st.session_state.reservas),
-            use_container_width=True,
+            width=""stretch"",
             key="grafico_tendencia_mensual",
         )
     with col_g4:
@@ -1282,7 +1283,7 @@ with tab1:
                     font=dict(family="Inter, sans-serif"),
                 )
                 st.plotly_chart(
-                    fig, use_container_width=True, key="grafico_asistentes_criterio"
+                    fig, width=""stretch"", key="grafico_asistentes_criterio"
                 )
             else:
                 st.info(
@@ -1294,7 +1295,7 @@ with tab1:
     st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
     st.plotly_chart(
         crear_mapa_calor_horarios(st.session_state.reservas),
-        use_container_width=True,
+        width=""stretch"",
         key="mapa_calor_horarios",
     )
     # Información adicional
@@ -1439,7 +1440,7 @@ with tab2:
     # Botón de reserva
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
-        if st.button("✅ Confirmar Reserva", type="primary", use_container_width=True):
+        if st.button("✅ Confirmar Reserva", type="primary", width=""stretch""):
             # Validaciones Estrictas
             errores = []
             if not nombre.strip() or len(nombre.strip()) < 3:
@@ -1724,7 +1725,7 @@ with tab3:
             ).dt.strftime("%d/%m/%Y")
             # Mostrar tabla con formato
             st.dataframe(
-                df_display, use_container_width=True, height=400, hide_index=True
+                df_display, width=""stretch"", height=400, hide_index=True
             )
             # Opción de descarga
             st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
@@ -1734,7 +1735,7 @@ with tab3:
                 data=csv,
                 file_name=f"reservas_{obtener_hora_local().strftime('%Y%m%d')}.csv",  # <-- Cambiado a hora local
                 mime="text/csv",
-                use_container_width=True,
+                width=""stretch"",
             )
         else:
             st.markdown(
