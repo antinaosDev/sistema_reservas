@@ -136,6 +136,22 @@ def _ejecutar_api_append(range_name_append, body):
     )
 
 
+@decorador_retry
+def _ejecutar_api_update(range_name_update, body):
+    """Actualiza datos con reintentos."""
+    return (
+        service.spreadsheets()
+        .values()
+        .update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=range_name_update,
+            valueInputOption="USER_ENTERED",
+            body=body,
+        )
+        .execute()
+    )
+
+
 # --- Fin Retry Logic ---
 # --- Fin Integración Google Sheets ---
 # Configuración de la página
@@ -357,43 +373,58 @@ def cargar_reservas_desde_sheets():
         for i, row in enumerate(
             rows, start=2
         ):  # Empezar en 2 porque la fila 1 son encabezados
-            if len(row) >= len(
-                headers
-            ):  # Asegurarse de que la fila tiene suficientes columnas
-                reserva_dict = {
-                    headers[j]: row[j] if j < len(row) else ""
-                    for j in range(len(headers))
-                }
-                # Convertir campos numéricos y de fecha/hora si es necesario
-                # Por ejemplo, num_asistentes debe ser int
-                try:
-                    reserva_dict["num_asistentes"] = int(
-                        reserva_dict.get("num_asistentes", 0)
-                    )
-                except ValueError:
-                    reserva_dict["num_asistentes"] = (
-                        0  # Valor por defecto si no es un número
-                    )
+            reserva_dict = {
+                headers[j]: row[j] if j < len(row) else ""
+                for j in range(len(headers))
+            }
+            
+            # Limpiar espacios en blanco de todos los campos de texto
+            for k, v in reserva_dict.items():
+                if isinstance(v, str):
+                    reserva_dict[k] = v.strip()
 
-                # El ID es string, no lo convertimos a int
-                # Validar que la fecha tenga un formato correcto
-                fecha_str = reserva_dict.get("fecha", "")
-                if fecha_str:
+            # Guardar el índice de la fila para futuras actualizaciones
+            reserva_dict["_row_index"] = i
+
+            # Convertir campos numéricos de forma segura
+            try:
+                reserva_dict["num_asistentes"] = int(reserva_dict.get("num_asistentes", 0))
+            except ValueError:
+                reserva_dict["num_asistentes"] = 0
+
+            # Validar fecha robustamente probando múltiples formatos
+            fecha_str = reserva_dict.get("fecha", "")
+            if fecha_str:
+                fecha_valida = None
+                for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]:
                     try:
-                        datetime.strptime(fecha_str, "%Y-%m-%d")
+                        fecha_obj = datetime.strptime(fecha_str, fmt)
+                        fecha_valida = fecha_obj.strftime("%Y-%m-%d") # Normalizar
+                        break
                     except ValueError:
-                        continue  # Saltar esta fila si la fecha es inválida
-                # Añadir duracion_horas como campo temporal con valor por defecto para la lógica
-                reserva_dict["duracion_horas"] = (
-                    1.5  # Valor por defecto para reservas existentes
-                )
-                # Manejar fecha_reserva
-                if not reserva_dict.get("fecha_reserva"):
-                    # Asignar un valor por defecto si la celda está vacía
-                    reserva_dict["fecha_reserva"] = "1900-01-01 00:00:00"
-                reservas.append(reserva_dict)
-            else:
-                pass  # Silenciar warning de filas con datos insuficientes
+                        continue
+                if not fecha_valida:
+                    print(f"Fila {i} saltada: formato de fecha inválido '{fecha_str}' en ID {reserva_dict.get('id', 'N/A')}")
+                    continue  # Saltar si la fecha es irreconocible
+                reserva_dict["fecha"] = fecha_valida
+            
+            # Validar horas robustamente (no ignorar toda la fila, sino advertir)
+            hora_inicio = reserva_dict.get("hora_inicio", "")
+            hora_fin = reserva_dict.get("hora_fin", "")
+            try:
+                if hora_inicio: datetime.strptime(hora_inicio, "%H:%M")
+                if hora_fin: datetime.strptime(hora_fin, "%H:%M")
+            except ValueError:
+                print(f"Advertencia fila {i}: formato de hora inválido en ID {reserva_dict.get('id', 'N/A')}. Se intentará procesar de todos modos.")
+
+            # Añadir duracion_horas como campo temporal
+            reserva_dict["duracion_horas"] = 1.5
+            
+            # Manejar fecha_reserva
+            if not reserva_dict.get("fecha_reserva"):
+                reserva_dict["fecha_reserva"] = "1900-01-01 00:00:00"
+                
+            reservas.append(reserva_dict)
         return reservas
     except Exception as e:
         print(f"Error al cargar reservas desde Google Sheets: {e}")
@@ -461,6 +492,36 @@ def guardar_reserva_en_sheets(reserva):
         st.error(f"Error al guardar la reserva: {e}")
         return ""  # Indicar fallo
 
+
+def actualizar_reserva_en_sheets(reserva):
+    """Actualiza una reserva existente en la hoja de cálculo de Google."""
+    try:
+        row_idx = reserva.get("_row_index")
+        if not row_idx:
+            print(f"No se puede actualizar la reserva {reserva.get('id')} porque no tiene _row_index (fue recién creada o hubo un error).")
+            return False
+            
+        fila_a_actualizar = [
+            reserva.get("id", ""),
+            reserva.get("nombre", ""),
+            reserva.get("email", ""),
+            reserva.get("fecha", ""),
+            reserva.get("hora_inicio_rango", ""),
+            reserva.get("hora_fin_rango", ""),
+            reserva.get("hora_inicio", ""),
+            reserva.get("hora_fin", ""),
+            reserva.get("criterio", ""),
+            str(reserva.get("num_asistentes", 0)),
+            reserva.get("proposito", ""),
+            reserva.get("fecha_reserva", ""),
+        ]
+        range_name_update = f"'{SHEET_NAME}'!A{row_idx}:L{row_idx}"
+        _ejecutar_api_update(range_name_update, {"values": [fila_a_actualizar]})
+        print(f"Reserva {reserva['id']} actualizada exitosamente en fila {row_idx}.")
+        return True
+    except Exception as e:
+        print(f"Error al actualizar reserva en Google Sheets: {e}")
+        return False
 
 # --- Fin Funciones Google Sheets ---
 # Funciones auxiliares (mantienen la misma lógica original, pero adaptadas para usar Google Sheets)
@@ -540,8 +601,13 @@ def obtener_prioridad(criterio):
 
 
 def time_to_minutes(t):
+    if not t:
+        return 0 # Safeguard contra valores nulos o vacíos
     if isinstance(t, str):
-        t = datetime.strptime(t, "%H:%M").time()
+        try:
+            t = datetime.strptime(t.strip(), "%H:%M").time()
+        except ValueError:
+            return 0 # Safeguard contra formatos inválidos
     return t.hour * 60 + t.minute
 
 
@@ -563,6 +629,10 @@ def verificar_solapamiento(inicio1, fin1, inicio2, fin2):
     f1 = time_to_minutes(fin1)
     i2 = time_to_minutes(inicio2)
     f2 = time_to_minutes(fin2)
+
+    # Safeguard en caso de que alguna hora sea inválida
+    if i1 == 0 and f1 == 0 and i2 == 0 and f2 == 0:
+        return False
 
     # Condición de solapamiento para intervalos cerrados
     return i1 <= f2 and i2 <= f1
@@ -1368,16 +1438,16 @@ with tab2:
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
         if st.button("✅ Confirmar Reserva", type="primary", use_container_width=True):
-            # Validaciones
+            # Validaciones Estrictas
             errores = []
-            if not nombre.strip():
-                errores.append("❌ El nombre es obligatorio")
-            if not email.strip() or "@" not in email:
-                errores.append("❌ El correo electrónico es inválido")
+            if not nombre.strip() or len(nombre.strip()) < 3:
+                errores.append("❌ El nombre completo es obligatorio (mínimo 3 caracteres)")
+            if not email.strip() or "@" not in email or "." not in email or len(email.strip()) < 5:
+                errores.append("❌ Ingrese un correo electrónico válido")
             if not criterio:
                 errores.append("❌ Debe seleccionar un criterio de prioridad")
-            if not proposito.strip():
-                errores.append("❌ El propósito de la reunión es obligatorio")
+            if not proposito.strip() or len(proposito.strip()) < 10:
+                errores.append("❌ El propósito de la reunión es obligatorio (mínimo 10 caracteres)")
             if not rango_valido:
                 errores.append("❌ El rango horario no es válido")
             if criterio.startswith("4") and num_asistentes < 4:
@@ -1431,9 +1501,19 @@ with tab2:
                     # Guardar la reserva en Google Sheets (el ID ya está asignado)
                     # Importante: Quitar 'duracion_horas' antes de guardar
                     reserva_a_guardar = nueva_reserva.copy()
-                    del reserva_a_guardar["duracion_horas"]
+                    if "duracion_horas" in reserva_a_guardar:
+                        del reserva_a_guardar["duracion_horas"]
+                    if "_row_index" in reserva_a_guardar:
+                        del reserva_a_guardar["_row_index"]
+                    
                     record_id = guardar_reserva(reserva_a_guardar)
                     if record_id:
+                        # Salvaguarda: Actualizar las reservas que fueron reubicadas por prioridad
+                        for r_reubicada in reservas_reubicadas:
+                            r_reubicada_copy = r_reubicada.copy()
+                            if "duracion_horas" in r_reubicada_copy:
+                                del r_reubicada_copy["duracion_horas"]
+                            actualizar_reserva_en_sheets(r_reubicada_copy)
                         # El ID ya está en nueva_reserva, no es necesario asignarlo de nuevo aquí
                         # --- CORRECCIÓN AQUÍ ---
                         # Actualizar la lista principal (reservas) con la lista procesada
